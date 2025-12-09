@@ -26,12 +26,14 @@ class GlobalConfig(BaseSettings):
     POSTGRES_PORT: str = "5433"
     POSTGRES_DB: str
 
-    API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
     REDIS_HOST: str = "localhost"
     REDIS_PORT: str = "6379"
+
+    SUPABASE_URL: str
+    SUPABASE_JWT_SECRET: str
 
     def _build_database_url(self, driver: str) -> str:
         """Build database URL with proper URL encoding."""
