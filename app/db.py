@@ -1,0 +1,59 @@
+import logging
+from typing import AsyncGenerator
+
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+engine = create_async_engine(
+    settings.database_url,
+    echo=settings.DEBUG,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Dependency for getting async database session."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except SQLAlchemyError:
+            await session.rollback()
+            raise
+
+
+async def close_db() -> None:
+    """Close database connections."""
+    await engine.dispose()
+    logger.info("Database connections closed")
+
+
+async def check_db_connection() -> bool:
+    """
+    Check if database connection is healthy.
+    
+    Returns:
+        True if connection is successful, False otherwise.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+            return True
+    except SQLAlchemyError as e:
+        logger.warning(f"Database connection check failed: {e}")
+        return False
