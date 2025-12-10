@@ -4,6 +4,7 @@ from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
+from app.api.ingest import router as ingest_router
 from app.config import settings
 from app.db import check_db_connection, close_db
 from app.logging_config import configure_logging
@@ -27,6 +28,7 @@ app = FastAPI(
 
 
 app.include_router(auth_router)
+app.include_router(ingest_router)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
