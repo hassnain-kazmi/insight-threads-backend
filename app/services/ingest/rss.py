@@ -67,11 +67,18 @@ def _normalize_entry(entry: dict[str, Any]) -> dict[str, Any]:
         
     Returns:
         Normalized document data
+        
+    Raises:
+        ValueError: If both entry ID and link are missing
     """
     title = entry.get("title", "")
     summary = entry.get("summary", "")
     content = entry.get("content", "")
     link = entry.get("link", "")
+    entry_id = entry.get("id", link)
+
+    if not entry_id:
+        raise ValueError("Entry ID and link are both missing from RSS entry data")
     
     full_text_parts = [title]
     
@@ -92,10 +99,10 @@ def _normalize_entry(entry: dict[str, Any]) -> dict[str, Any]:
     full_text = "\n\n".join(full_text_parts)
     
     return {
-        "title": title[:512],
+        "title": title[:512] if title else "Untitled",
         "raw_text": full_text,
         "url": link,
-        "entry_id": entry.get("id", link),
+        "entry_id": entry_id,
     }
 
 
