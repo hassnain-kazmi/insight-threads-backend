@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class UserResponse(BaseModel):
-    """Pydantic model for user response."""
+    """Response model for user."""
     
     user_id: UUID = Field(..., description="User unique identifier")
     email: str = Field(..., description="User email address")
