@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 class TriggerIngestionRequest(BaseModel):
     """Request model for triggering ingestion."""
     
-    source: str = Field(..., description="Data source type (e.g., 'reddit')")
+    source: str = Field(..., description="Data source type (e.g., 'rss')")
     source_params: dict = Field(default_factory=dict, description="Source-specific parameters")
 
 

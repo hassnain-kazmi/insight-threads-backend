@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_db
 from app.models import User
 from app.schemas.ingest import TriggerIngestionRequest, TriggerIngestionResponse
-from app.services.ingest_service import IngestService
+from app.services.ingest_service import create_and_enqueue_ingestion
 from app.utils.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -34,9 +34,11 @@ async def trigger_ingestion(
         TriggerIngestionResponse with ingest_event_id and task_id
     """
     try:
-        ingest_event, task_id = await IngestService.create_and_enqueue_ingestion(
+        ingest_event, task_id = await create_and_enqueue_ingestion(
             user=current_user,
             db=db,
+            source=request.source,
+            source_params=request.source_params,
         )
         
         logger.info(

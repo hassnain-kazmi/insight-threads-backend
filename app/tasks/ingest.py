@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID
 
 from celery import Task
@@ -8,26 +10,39 @@ from app.celery_app import celery_app
 
 from app.db import get_sync_db
 from app.models import IngestEvent
+from app.services.ingest.rss import DEFAULT_LIMIT, ingest_feeds
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, name="app.tasks.ingest.process_ingestion")
-def process_ingestion(self: Task, ingest_event_id: str, user_id: str) -> dict:
+def process_ingestion(
+    self: Task,
+    ingest_event_id: str,
+    user_id: str,
+    source: str = "rss",
+    source_params: dict | None = None,
+) -> dict[str, Any]:
     """
     Celery task to process ingestion event.
     
     Args:
         ingest_event_id: UUID of the ingestion event
         user_id: UUID of the user initiating the ingestion
+        source: Source type (e.g., 'rss')
+        source_params: Source-specific parameters
         
     Returns:
         dict: Task result with status and ingest_event_id
     """
     ingest_uuid = UUID(ingest_event_id)
     user_uuid = UUID(user_id)
+    source_params = source_params or {}
     
-    logger.info(f"Processing ingestion event {ingest_uuid} for user {user_uuid}")
+    logger.info(
+        f"Processing ingestion event {ingest_uuid} for user {user_uuid}, "
+        f"source: {source}, params: {source_params}"
+    )
     
     try:
         with get_sync_db() as db:
@@ -48,13 +63,37 @@ def process_ingestion(self: Task, ingest_event_id: str, user_id: str) -> dict:
             
             logger.info(f"Ingestion event {ingest_uuid} marked as processing")
             
-            # TODO: Implement actual ingestion logic (Reddit, etc.)
-            
-            return {
-                "status": "processing",
-                "ingest_event_id": str(ingest_uuid),
-                "task_id": self.request.id,
-            }
+            if source == "rss":
+                feed_urls = source_params.get("feed_urls", [])
+                if isinstance(feed_urls, str):
+                    feed_urls = [feed_urls]
+                limit = source_params.get("limit", DEFAULT_LIMIT)
+                
+                stats = ingest_feeds(
+                    db=db,
+                    ingest_event_id=ingest_uuid,
+                    user_id=user_uuid,
+                    feed_urls=feed_urls,
+                    limit=limit,
+                )
+                
+                event.status = "completed"
+                event.completed_at = datetime.now(timezone.utc)
+                db.commit()
+                
+                logger.info(
+                    f"Ingestion event {ingest_uuid} completed: "
+                    f"{stats['new_documents']} new documents created"
+                )
+                
+                return {
+                    "status": "completed",
+                    "ingest_event_id": str(ingest_uuid),
+                    "task_id": self.request.id,
+                    "stats": stats,
+                }
+            else:
+                raise ValueError(f"Unsupported source type: {source}")
             
     except Exception as e:
         logger.error(f"Error processing ingestion event {ingest_uuid}: {e}", exc_info=True)

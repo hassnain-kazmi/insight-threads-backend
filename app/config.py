@@ -34,6 +34,8 @@ class GlobalConfig(BaseSettings):
 
     SUPABASE_URL: str
     SUPABASE_JWT_SECRET: str
+    SUPABASE_SERVICE_KEY: str
+    SUPABASE_STORAGE_BUCKET: str
 
     def _build_database_url(self, driver: str) -> str:
         """Build database URL with proper URL encoding."""
