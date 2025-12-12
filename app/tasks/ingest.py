@@ -64,23 +64,37 @@ def process_ingestion(
             
             logger.info(f"Ingestion event {ingest_uuid} marked as processing")
             
-            if source == "rss":
-                feed_urls = source_params.get("feed_urls", [])
-                if isinstance(feed_urls, str):
-                    feed_urls = [feed_urls]
-                limit = source_params.get("limit", DEFAULT_LIMIT)
+            try:
+                if source == "rss":
+                    feed_urls = source_params.get("feed_urls", [])
+                    if isinstance(feed_urls, str):
+                        feed_urls = [feed_urls]
+                    limit = source_params.get("limit", DEFAULT_LIMIT)
+                    
+                    stats = ingest_feeds(
+                        db=db,
+                        ingest_event_id=ingest_uuid,
+                        user_id=user_uuid,
+                        feed_urls=feed_urls,
+                        limit=limit,
+                    )
+                elif source == "hackernews":
+                    endpoint = source_params.get("endpoint", "topstories")
+                    limit = source_params.get("limit", HN_DEFAULT_LIMIT)
+                    
+                    stats = ingest_posts(
+                        db=db,
+                        ingest_event_id=ingest_uuid,
+                        user_id=user_uuid,
+                        endpoint=endpoint,
+                        limit=limit,
+                    )
+                else:
+                    raise ValueError(f"Unsupported source type: {source}")
                 
-                stats = ingest_feeds(
-                    db=db,
-                    ingest_event_id=ingest_uuid,
-                    user_id=user_uuid,
-                    feed_urls=feed_urls,
-                    limit=limit,
-                )
-                
+                db.refresh(event)
                 event.status = "completed"
                 event.completed_at = datetime.now(timezone.utc)
-                db.commit()
                 
                 logger.info(
                     f"Ingestion event {ingest_uuid} completed: "
@@ -93,35 +107,10 @@ def process_ingestion(
                     "task_id": self.request.id,
                     "stats": stats,
                 }
-            elif source == "hackernews":
-                endpoint = source_params.get("endpoint", "topstories")
-                limit = source_params.get("limit", HN_DEFAULT_LIMIT)
-                
-                stats = ingest_posts(
-                    db=db,
-                    ingest_event_id=ingest_uuid,
-                    user_id=user_uuid,
-                    endpoint=endpoint,
-                    limit=limit,
-                )
-                
-                event.status = "completed"
-                event.completed_at = datetime.now(timezone.utc)
-                db.commit()
-                
-                logger.info(
-                    f"Ingestion event {ingest_uuid} completed: "
-                    f"{stats['new_documents']} new documents created"
-                )
-                
-                return {
-                    "status": "completed",
-                    "ingest_event_id": str(ingest_uuid),
-                    "task_id": self.request.id,
-                    "stats": stats,
-                }
-            else:
-                raise ValueError(f"Unsupported source type: {source}")
+                    
+            except Exception:
+                db.rollback()
+                raise
             
     except Exception as e:
         logger.error(f"Error processing ingestion event {ingest_uuid}: {e}", exc_info=True)
@@ -137,6 +126,6 @@ def process_ingestion(
                     event.error_message = str(e)
                     db.commit()
         except Exception as db_error:
-            logger.error(f"Failed to update event status to failed: {db_error}")
+            logger.error(f"Failed to update event status to failed: {db_error}", exc_info=True)
         
         raise
