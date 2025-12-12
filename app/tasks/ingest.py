@@ -10,6 +10,7 @@ from app.celery_app import celery_app
 
 from app.db import get_sync_db
 from app.models import IngestEvent
+from app.services.ingest.hackernews import DEFAULT_LIMIT as HN_DEFAULT_LIMIT, ingest_posts
 from app.services.ingest.rss import DEFAULT_LIMIT, ingest_feeds
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,33 @@ def process_ingestion(
                     ingest_event_id=ingest_uuid,
                     user_id=user_uuid,
                     feed_urls=feed_urls,
+                    limit=limit,
+                )
+                
+                event.status = "completed"
+                event.completed_at = datetime.now(timezone.utc)
+                db.commit()
+                
+                logger.info(
+                    f"Ingestion event {ingest_uuid} completed: "
+                    f"{stats['new_documents']} new documents created"
+                )
+                
+                return {
+                    "status": "completed",
+                    "ingest_event_id": str(ingest_uuid),
+                    "task_id": self.request.id,
+                    "stats": stats,
+                }
+            elif source == "hackernews":
+                endpoint = source_params.get("endpoint", "topstories")
+                limit = source_params.get("limit", HN_DEFAULT_LIMIT)
+                
+                stats = ingest_posts(
+                    db=db,
+                    ingest_event_id=ingest_uuid,
+                    user_id=user_uuid,
+                    endpoint=endpoint,
                     limit=limit,
                 )
                 
