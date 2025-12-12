@@ -10,6 +10,7 @@ from app.celery_app import celery_app
 
 from app.db import get_sync_db
 from app.models import IngestEvent
+from app.services.ingest.github import DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT, ingest_repository
 from app.services.ingest.hackernews import DEFAULT_LIMIT as HN_DEFAULT_LIMIT, ingest_posts
 from app.services.ingest.rss import DEFAULT_LIMIT, ingest_feeds
 
@@ -88,6 +89,36 @@ def process_ingestion(
                         user_id=user_uuid,
                         endpoint=endpoint,
                         limit=limit,
+                    )
+                elif source == "github":
+                    owner = source_params.get("owner", "")
+                    repo = source_params.get("repo", "")
+                    if not owner or not repo:
+                        raise ValueError("GitHub ingestion requires 'owner' and 'repo' parameters")
+                    
+                    include_commits = source_params.get("include_commits", True)
+                    include_issues = source_params.get("include_issues", True)
+                    include_prs = source_params.get("include_prs", True)
+                    include_releases = source_params.get("include_releases", True)
+                    limit_per_type = source_params.get("limit_per_type", GITHUB_DEFAULT_LIMIT)
+                    commit_since = source_params.get("commit_since")
+                    issue_state = source_params.get("issue_state", "all")
+                    pr_state = source_params.get("pr_state", "all")
+                    
+                    stats = ingest_repository(
+                        db=db,
+                        ingest_event_id=ingest_uuid,
+                        user_id=user_uuid,
+                        owner=owner,
+                        repo=repo,
+                        include_commits=include_commits,
+                        include_issues=include_issues,
+                        include_prs=include_prs,
+                        include_releases=include_releases,
+                        limit_per_type=limit_per_type,
+                        commit_since=commit_since,
+                        issue_state=issue_state,
+                        pr_state=pr_state,
                     )
                 else:
                     raise ValueError(f"Unsupported source type: {source}")
