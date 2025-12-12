@@ -7,7 +7,6 @@ from . import Base
 
 class ClusterMember(Base):
     __tablename__ = "cluster_members"
-    __table_args__ = {"extend_existing": True}
 
     cluster_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clusters.id", ondelete="CASCADE"), primary_key=True

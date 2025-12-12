@@ -211,36 +211,45 @@ def ingest_posts(
     duplicates = 0
     errors = 0
     
-    for post in posts:
-        try:
-            normalized = _normalize_post(post)
-            
-            existing = check_duplicate(db, normalized["url"])
-            if existing:
-                duplicates += 1
-                logger.debug(f"Duplicate found: {normalized['url']}")
-                continue
-            
-            post_id = normalized["post_id"]
-            post_id_str = sanitize_filename(str(post_id), max_length=100)
-            snapshot_path = f"hackernews/{user_id}/{ingest_event_id}/{post_id_str}.json"
-            storage_path = upload_snapshot(post, snapshot_path)
-            
-            document = Document(
-                user_id=user_id,
-                ingest_event_id=ingest_event_id,
-                source_path=normalized["url"] or storage_path,
-                title=normalized["title"],
-                raw_text=normalized["raw_text"],
-                processed=False,
-            )
-            db.add(document)
-            new_documents += 1
-            
-        except Exception as e:
-            errors += 1
-            post_id = post.get("id", "unknown")
-            logger.error(f"Error processing post {post_id}: {e}", exc_info=True)
+    try:
+        for post in posts:
+            try:
+                normalized = _normalize_post(post)
+                
+                existing = check_duplicate(db, normalized["url"])
+                if existing:
+                    duplicates += 1
+                    logger.debug(f"Duplicate found: {normalized['url']}")
+                    continue
+                
+                post_id = normalized["post_id"]
+                post_id_str = sanitize_filename(str(post_id), max_length=100)
+                snapshot_path = f"hackernews/{user_id}/{ingest_event_id}/{post_id_str}.json"
+                storage_path = upload_snapshot(post, snapshot_path)
+                
+                document = Document(
+                    user_id=user_id,
+                    ingest_event_id=ingest_event_id,
+                    source_path=normalized["url"] or storage_path,
+                    title=normalized["title"],
+                    raw_text=normalized["raw_text"],
+                    processed=False,
+                )
+                db.add(document)
+                new_documents += 1
+                
+            except Exception as e:
+                errors += 1
+                post_id = post.get("id", "unknown")
+                logger.error(f"Error processing post {post_id}: {e}", exc_info=True)
+
+        db.commit()
+        logger.info(f"Committed {new_documents} new documents to database")
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Critical error during Hacker News ingestion, rolling back transaction: {e}", exc_info=True)
+        raise
     
     stats = {
         "total_fetched": len(posts),

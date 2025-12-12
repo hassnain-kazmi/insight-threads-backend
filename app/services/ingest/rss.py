@@ -162,34 +162,43 @@ def ingest_feeds(
     duplicates = 0
     errors = 0
     
-    for entry in all_entries:
-        try:
-            normalized = _normalize_entry(entry)
-            
-            existing = check_duplicate(db, normalized["url"])
-            if existing:
-                duplicates += 1
-                logger.debug(f"Duplicate found: {normalized['url']}")
-                continue
-            
-            entry_id = sanitize_filename(normalized["entry_id"], max_length=100)
-            snapshot_path = f"rss/{user_id}/{ingest_event_id}/{entry_id}.json"
-            storage_path = upload_snapshot(entry, snapshot_path)
-            
-            document = Document(
-                user_id=user_id,
-                ingest_event_id=ingest_event_id,
-                source_path=normalized["url"] or storage_path,
-                title=normalized["title"],
-                raw_text=normalized["raw_text"],
-                processed=False,
-            )
-            db.add(document)
-            new_documents += 1
-            
-        except Exception as e:
-            errors += 1
-            logger.error(f"Error processing entry {entry.get('id', 'unknown')}: {e}", exc_info=True)
+    try:
+        for entry in all_entries:
+            try:
+                normalized = _normalize_entry(entry)
+                
+                existing = check_duplicate(db, normalized["url"])
+                if existing:
+                    duplicates += 1
+                    logger.debug(f"Duplicate found: {normalized['url']}")
+                    continue
+                
+                entry_id = sanitize_filename(normalized["entry_id"], max_length=100)
+                snapshot_path = f"rss/{user_id}/{ingest_event_id}/{entry_id}.json"
+                storage_path = upload_snapshot(entry, snapshot_path)
+                
+                document = Document(
+                    user_id=user_id,
+                    ingest_event_id=ingest_event_id,
+                    source_path=normalized["url"] or storage_path,
+                    title=normalized["title"],
+                    raw_text=normalized["raw_text"],
+                    processed=False,
+                )
+                db.add(document)
+                new_documents += 1
+                
+            except Exception as e:
+                errors += 1
+                logger.error(f"Error processing entry {entry.get('id', 'unknown')}: {e}", exc_info=True)
+        
+        db.commit()
+        logger.info(f"Committed {new_documents} new documents to database")
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Critical error during RSS ingestion, rolling back transaction: {e}", exc_info=True)
+        raise
     
     stats = {
         "total_fetched": len(all_entries),
