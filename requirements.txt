@@ -15,4 +15,5 @@ redis>=5.0.0
 feedparser>=6.0.10
 requests>=2.31.0
 supabase>=2.0.0
+sentence-transformers>=2.2.0
 

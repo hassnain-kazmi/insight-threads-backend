@@ -6,7 +6,7 @@ celery_app = Celery(
     "insightthreads",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.ingest"],
+    include=["app.tasks.ingest", "app.tasks.embed"],
 )
 
 celery_app.conf.update(
@@ -21,4 +21,3 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
 )
-
