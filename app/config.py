@@ -37,6 +37,8 @@ class GlobalConfig(BaseSettings):
     SUPABASE_SERVICE_KEY: str
     SUPABASE_STORAGE_BUCKET: str
 
+    GITHUB_TOKEN: Optional[str] = None
+
     def _build_database_url(self, driver: str) -> str:
         """Build database URL with proper URL encoding."""
         user = quote_plus(self.POSTGRES_USER)
