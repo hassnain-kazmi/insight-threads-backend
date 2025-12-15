@@ -6,7 +6,7 @@ celery_app = Celery(
     "insightthreads",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.ingest", "app.tasks.embed", "app.tasks.umap_job"],
+    include=["app.tasks.ingest", "app.tasks.embed", "app.tasks.umap_job", "app.tasks.cluster_job"],
 )
 
 celery_app.conf.update(
