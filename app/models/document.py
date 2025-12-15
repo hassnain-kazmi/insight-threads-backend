@@ -28,4 +28,5 @@ class Document(Base):
     embeddings = relationship("DocumentEmbedding", back_populates="document", cascade="all, delete-orphan")
     sentiments = relationship("DocumentSentiment", back_populates="document", cascade="all, delete-orphan")
     cluster_memberships = relationship("ClusterMember", back_populates="document", cascade="all, delete-orphan")
+    umap_projections = relationship("UMAPProjection", back_populates="document", cascade="all, delete-orphan")
 
