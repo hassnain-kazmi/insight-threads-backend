@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.celery_app import celery_app
 
 from app.db import get_sync_db
-from app.models import Document, DocumentEmbedding, IngestEvent
+from app.models import Document, DocumentEmbedding, DocumentSentiment, IngestEvent
 from app.ml.embeddings import DEFAULT_MODEL_NAME
 from app.services.ingest.rss import DEFAULT_LIMIT as RSS_DEFAULT_LIMIT, ingest_feeds
 from app.services.ingest.hackernews import DEFAULT_LIMIT as HN_DEFAULT_LIMIT, ingest_posts
@@ -140,12 +140,13 @@ def process_ingestion(
                 documents = documents_result.scalars().all()
                 
                 embedding_tasks_enqueued = 0
+                sentiment_tasks_enqueued = 0
                 
                 if not documents:
                     logger.info(f"No documents found for ingestion event {ingest_uuid}")
                 else:
                     document_ids = [doc.id for doc in documents]
-                    
+
                     existing_embeddings_result = db.execute(
                         select(DocumentEmbedding.document_id).where(
                             DocumentEmbedding.document_id.in_(document_ids),
@@ -153,42 +154,102 @@ def process_ingestion(
                         )
                     )
                     embedded_document_ids = set(existing_embeddings_result.scalars().all())
+
+                    existing_sentiments_result = db.execute(
+                        select(DocumentSentiment.document_id).where(
+                            DocumentSentiment.document_id.in_(document_ids),
+                        )
+                    )
+                    sentiment_document_ids = set(existing_sentiments_result.scalars().all())
+
                     for document in documents:
                         if not document.raw_text or not document.raw_text.strip():
                             logger.warning(
-                                f"Skipping embedding for document {document.id}: no text content"
+                                f"Skipping embedding/sentiment for document {document.id}: no text content"
                             )
                             continue
                         
-                        if document.id in embedded_document_ids:
-                            logger.debug(
-                                f"Skipping embedding for document {document.id}: "
-                                f"embedding already exists with model {DEFAULT_MODEL_NAME}"
-                            )
-                            continue
-                        
-                        try:
-                            celery_app.send_task(
-                                "app.tasks.embed.compute_document_embedding",
-                                args=[str(document.id), DEFAULT_MODEL_NAME],
-                            )
-                            embedding_tasks_enqueued += 1
-                        except Exception as embed_error:
-                            logger.error(
-                                f"Failed to enqueue embedding task for document {document.id}: {embed_error}",
-                                exc_info=True,
-                            )
-                
+                        if document.id not in embedded_document_ids:
+                            try:
+                                celery_app.send_task(
+                                    "app.tasks.embed.compute_document_embedding",
+                                    args=[str(document.id), DEFAULT_MODEL_NAME],
+                                )
+                                embedding_tasks_enqueued += 1
+                            except Exception as embed_error:
+                                logger.error(
+                                    f"Failed to enqueue embedding task for document {document.id}: {embed_error}",
+                                    exc_info=True,
+                                )
+
+                        if document.id not in sentiment_document_ids:
+                            try:
+                                celery_app.send_task(
+                                    "app.tasks.sentiment_job.compute_document_sentiment",
+                                    args=[str(document.id)],
+                                )
+                                sentiment_tasks_enqueued += 1
+                            except Exception as sentiment_error:
+                                logger.error(
+                                    f"Failed to enqueue sentiment task for document {document.id}: {sentiment_error}",
+                                    exc_info=True,
+                                )
+
                 logger.info(
-                    f"Enqueued {embedding_tasks_enqueued} embedding tasks for ingestion event {ingest_uuid}"
+                    f"Enqueued {embedding_tasks_enqueued} embedding tasks and "
+                    f"{sentiment_tasks_enqueued} sentiment tasks for ingestion event {ingest_uuid}"
                 )
-                
+
+                umap_job_enqueued = False
+                clustering_job_enqueued = False
+
+                try:
+                    celery_app.send_task(
+                        "app.tasks.umap_job.compute_umap_projections",
+                        kwargs={
+                            "user_id": str(user_uuid),
+                            "model_name": DEFAULT_MODEL_NAME,
+                        },
+                    )
+                    umap_job_enqueued = True
+                    logger.info(
+                        f"Enqueued UMAP projection job for user {user_uuid} "
+                        f"and model {DEFAULT_MODEL_NAME} after ingestion event {ingest_uuid}"
+                    )
+                except Exception as umap_error:
+                    logger.error(
+                        f"Failed to enqueue UMAP projection job after ingestion event {ingest_uuid}: {umap_error}",
+                        exc_info=True,
+                    )
+
+                try:
+                    celery_app.send_task(
+                        "app.tasks.cluster_job.run_clustering_job",
+                        kwargs={
+                            "user_id": str(user_uuid),
+                            "model_name": DEFAULT_MODEL_NAME,
+                        },
+                    )
+                    clustering_job_enqueued = True
+                    logger.info(
+                        f"Enqueued clustering job for user {user_uuid} "
+                        f"and model {DEFAULT_MODEL_NAME} after ingestion event {ingest_uuid}"
+                    )
+                except Exception as cluster_error:
+                    logger.error(
+                        f"Failed to enqueue clustering job after ingestion event {ingest_uuid}: {cluster_error}",
+                        exc_info=True,
+                    )
+
                 return {
                     "status": "completed",
                     "ingest_event_id": str(ingest_uuid),
                     "task_id": self.request.id,
                     "stats": stats,
                     "embedding_tasks_enqueued": embedding_tasks_enqueued,
+                    "sentiment_tasks_enqueued": sentiment_tasks_enqueued,
+                    "umap_job_enqueued": umap_job_enqueued,
+                    "clustering_job_enqueued": clustering_job_enqueued,
                 }
                     
             except Exception:
