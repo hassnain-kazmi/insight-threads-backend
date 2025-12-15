@@ -12,6 +12,7 @@ celery_app = Celery(
         "app.tasks.umap_job",
         "app.tasks.cluster_job",
         "app.tasks.sentiment_job",
+        "app.tasks.timeseries_job",
     ],
 )
 

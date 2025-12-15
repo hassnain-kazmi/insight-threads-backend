@@ -260,6 +260,23 @@ def run_clustering_job(
                 f"{total_members_created} members, {total_keywords_created} keywords"
             )
             
+            timeseries_job_enqueued = False
+            if total_clusters_created > 0:
+                try:
+                    celery_app.send_task(
+                        "app.tasks.timeseries_job.compute_timeseries_summaries",
+                        kwargs={"user_id": user_id},
+                    )
+                    timeseries_job_enqueued = True
+                    logger.info(
+                        f"Enqueued timeseries job for user {user_id} after clustering"
+                    )
+                except Exception as ts_error:
+                    logger.error(
+                        f"Failed to enqueue timeseries job: {ts_error}",
+                        exc_info=True,
+                    )
+            
             return {
                 "status": "completed",
                 "model_name": model_name,
@@ -268,6 +285,7 @@ def run_clustering_job(
                 "clusters_created": total_clusters_created,
                 "members_created": total_members_created,
                 "keywords_created": total_keywords_created,
+                "timeseries_job_enqueued": timeseries_job_enqueued,
                 "task_id": self.request.id,
             }
             
