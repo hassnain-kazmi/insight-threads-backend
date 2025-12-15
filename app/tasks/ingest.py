@@ -9,10 +9,11 @@ from sqlalchemy import select
 from app.celery_app import celery_app
 
 from app.db import get_sync_db
-from app.models import IngestEvent
-from app.services.ingest.github import DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT, ingest_repository
+from app.models import Document, DocumentEmbedding, IngestEvent
+from app.ml.embeddings import DEFAULT_MODEL_NAME
+from app.services.ingest.rss import DEFAULT_LIMIT as RSS_DEFAULT_LIMIT, ingest_feeds
 from app.services.ingest.hackernews import DEFAULT_LIMIT as HN_DEFAULT_LIMIT, ingest_posts
-from app.services.ingest.rss import DEFAULT_LIMIT, ingest_feeds
+from app.services.ingest.github import DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT, ingest_repository
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def process_ingestion(
         source_params: Source-specific parameters
         
     Returns:
-        dict: Task result with status and ingest_event_id
+        dict: Task result with status, ingest_event_id, stats, and embedding_tasks_enqueued
     """
     ingest_uuid = UUID(ingest_event_id)
     user_uuid = UUID(user_id)
@@ -70,7 +71,7 @@ def process_ingestion(
                     feed_urls = source_params.get("feed_urls", [])
                     if isinstance(feed_urls, str):
                         feed_urls = [feed_urls]
-                    limit = source_params.get("limit", DEFAULT_LIMIT)
+                    limit = source_params.get("limit", RSS_DEFAULT_LIMIT)
                     
                     stats = ingest_feeds(
                         db=db,
@@ -126,10 +127,60 @@ def process_ingestion(
                 db.refresh(event)
                 event.status = "completed"
                 event.completed_at = datetime.now(timezone.utc)
+                db.commit()
                 
                 logger.info(
                     f"Ingestion event {ingest_uuid} completed: "
                     f"{stats['new_documents']} new documents created"
+                )
+                
+                documents_result = db.execute(
+                    select(Document).where(Document.ingest_event_id == ingest_uuid)
+                )
+                documents = documents_result.scalars().all()
+                
+                embedding_tasks_enqueued = 0
+                
+                if not documents:
+                    logger.info(f"No documents found for ingestion event {ingest_uuid}")
+                else:
+                    document_ids = [doc.id for doc in documents]
+                    
+                    existing_embeddings_result = db.execute(
+                        select(DocumentEmbedding.document_id).where(
+                            DocumentEmbedding.document_id.in_(document_ids),
+                            DocumentEmbedding.model_name == DEFAULT_MODEL_NAME,
+                        )
+                    )
+                    embedded_document_ids = set(existing_embeddings_result.scalars().all())
+                    for document in documents:
+                        if not document.raw_text or not document.raw_text.strip():
+                            logger.warning(
+                                f"Skipping embedding for document {document.id}: no text content"
+                            )
+                            continue
+                        
+                        if document.id in embedded_document_ids:
+                            logger.debug(
+                                f"Skipping embedding for document {document.id}: "
+                                f"embedding already exists with model {DEFAULT_MODEL_NAME}"
+                            )
+                            continue
+                        
+                        try:
+                            celery_app.send_task(
+                                "app.tasks.embed.compute_document_embedding",
+                                args=[str(document.id), DEFAULT_MODEL_NAME],
+                            )
+                            embedding_tasks_enqueued += 1
+                        except Exception as embed_error:
+                            logger.error(
+                                f"Failed to enqueue embedding task for document {document.id}: {embed_error}",
+                                exc_info=True,
+                            )
+                
+                logger.info(
+                    f"Enqueued {embedding_tasks_enqueued} embedding tasks for ingestion event {ingest_uuid}"
                 )
                 
                 return {
@@ -137,6 +188,7 @@ def process_ingestion(
                     "ingest_event_id": str(ingest_uuid),
                     "task_id": self.request.id,
                     "stats": stats,
+                    "embedding_tasks_enqueued": embedding_tasks_enqueued,
                 }
                     
             except Exception:
