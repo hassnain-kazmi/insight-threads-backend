@@ -105,11 +105,31 @@ def compute_timeseries_summaries(
                 total_rows_written,
             )
 
+            anomaly_job_enqueued = False
+            if total_rows_written > 0:
+                try:
+                    celery_app.send_task(
+                        "app.tasks.anomaly_job.detect_cluster_anomalies",
+                        kwargs={"user_id": user_id},
+                    )
+                    anomaly_job_enqueued = True
+                    logger.info(
+                        "Enqueued anomaly detection job for user %s after timeseries job",
+                        user_id if user_id else "all users",
+                    )
+                except Exception as anomaly_error:
+                    logger.error(
+                        "Failed to enqueue anomaly detection job: %s",
+                        anomaly_error,
+                        exc_info=True,
+                    )
+
             return {
                 "status": "completed",
                 "user_id": user_id,
                 "clusters_processed": len(cluster_ids),
                 "rows_written": total_rows_written,
+                "anomaly_job_enqueued": anomaly_job_enqueued,
                 "task_id": self.request.id,
             }
 
