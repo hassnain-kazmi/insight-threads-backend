@@ -25,4 +25,6 @@ transformers>=4.37.0
 torch>=2.1.0
 pandas>=2.0.0
 prophet>=1.1.5
+pyod>=1.1.0
+numpy>=1.24.0
 
