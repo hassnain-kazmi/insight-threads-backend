@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -7,8 +8,9 @@ from sqlalchemy import select
 
 from app.celery_app import celery_app
 from app.db import get_sync_db
+from app.ml.embeddings import DEFAULT_MODEL_NAME
 from app.ml.sentiment import DEFAULT_DISTILBERT_MODEL, analyze_sentiment
-from app.models import Document, DocumentSentiment
+from app.models import Document, DocumentEmbedding, DocumentSentiment
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,24 @@ def compute_document_sentiment(
                     combined_score=scores.get("combined_score"),
                 )
                 db.add(sentiment)
+                
+                if not document.processed:
+                    embedding_result = db.execute(
+                        select(DocumentEmbedding).where(
+                            DocumentEmbedding.document_id == doc_uuid,
+                            DocumentEmbedding.model_name == DEFAULT_MODEL_NAME,
+                        )
+                    )
+                    embedding_exists = embedding_result.scalar_one_or_none() is not None
+                    
+                    if embedding_exists:
+                        document.processed = True
+                        document.processed_at = datetime.now(timezone.utc)
+                        logger.info(
+                            f"Marked document {doc_uuid} as processed "
+                            f"(embedding and sentiment both exist)"
+                        )
+                
                 db.commit()
                 db.refresh(sentiment)
 
