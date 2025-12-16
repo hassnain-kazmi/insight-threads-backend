@@ -14,6 +14,7 @@ class Cluster(Base):
     centroid_384: Mapped[list[float] | None] = mapped_column(Vector(384), nullable=True)
     document_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     avg_sentiment: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trending_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
