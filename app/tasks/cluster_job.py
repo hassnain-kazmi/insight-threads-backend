@@ -195,6 +195,7 @@ def run_clustering_job(
                             centroid_384=centroid,
                             document_count=len(member_doc_ids),
                             avg_sentiment=avg_sentiment,
+                            trending_score=None,
                         )
                         db.add(cluster)
                         db.flush()

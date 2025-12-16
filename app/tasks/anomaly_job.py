@@ -9,6 +9,7 @@ from app.celery_app import celery_app
 from app.db import get_sync_db
 from app.ml.anomaly import detect_anomalies_for_cluster
 from app.models import Anomaly, Cluster
+from app.services.trending import DEFAULT_LOOKBACK_DAYS, calculate_trending_score
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ def detect_cluster_anomalies(
       2. For each cluster, fetches timeseries data and runs PyOD anomaly detection
       3. Writes detected anomalies to the `anomalies` table
       4. Replaces existing anomalies for the affected clusters to keep the operation idempotent
+      5. Updates trending scores for all processed clusters
 
     Args:
         user_id: Optional user ID to filter clusters
@@ -81,25 +83,48 @@ def detect_cluster_anomalies(
                             "No anomalies detected for cluster %s, deleted any existing rows",
                             cluster_id,
                         )
-                        continue
-
-                    for anomaly_data in anomalies:
-                        db.add(
-                            Anomaly(
-                                cluster_id=cluster_id,
-                                anomaly_date=anomaly_data["date"],
-                                score=anomaly_data["score"],
-                                type=anomaly_data["type"],
-                                anomaly_metadata=anomaly_data.get("metadata"),
+                    else:
+                        for anomaly_data in anomalies:
+                            db.add(
+                                Anomaly(
+                                    cluster_id=cluster_id,
+                                    anomaly_date=anomaly_data["date"],
+                                    score=anomaly_data["score"],
+                                    type=anomaly_data["type"],
+                                    anomaly_metadata=anomaly_data.get("metadata"),
+                                )
                             )
+
+                        total_anomalies += len(anomalies)
+                        logger.debug(
+                            "Detected %d anomalies for cluster %s",
+                            len(anomalies),
+                            cluster_id,
                         )
 
-                    total_anomalies += len(anomalies)
-                    logger.debug(
-                        "Detected %d anomalies for cluster %s",
-                        len(anomalies),
-                        cluster_id,
-                    )
+                    try:
+                        trending_score = calculate_trending_score(
+                            cluster_id=cluster_id,
+                            db=db,
+                            lookback_days=DEFAULT_LOOKBACK_DAYS,
+                        )
+                        db.execute(
+                            sa.update(Cluster)
+                            .where(Cluster.id == cluster_id)
+                            .values(trending_score=trending_score)
+                        )
+                        logger.debug(
+                            "Updated trending score for cluster %s: %.4f",
+                            cluster_id,
+                            trending_score,
+                        )
+                    except Exception as trending_error:
+                        logger.warning(
+                            "Failed to calculate trending score for cluster %s: %s",
+                            cluster_id,
+                            trending_error,
+                            exc_info=True,
+                        )
 
                 db.commit()
             except Exception:
