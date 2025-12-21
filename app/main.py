@@ -6,8 +6,10 @@ from fastapi.responses import JSONResponse
 from app.api.anomalies import router as anomalies_router
 from app.api.auth import router as auth_router
 from app.api.clusters import router as clusters_router
-from app.api.insights import router as insights_router
+from app.api.documents import router as documents_router
 from app.api.ingest import router as ingest_router
+from app.api.ingest_events import router as ingest_events_router
+from app.api.insights import router as insights_router
 from app.api.search import router as search_router
 from app.config import settings
 from app.db import check_db_connection, close_db
@@ -33,6 +35,8 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(ingest_router)
+app.include_router(ingest_events_router)
+app.include_router(documents_router)
 app.include_router(clusters_router)
 app.include_router(insights_router)
 app.include_router(anomalies_router)
