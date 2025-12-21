@@ -3,9 +3,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 
+from app.api.anomalies import router as anomalies_router
 from app.api.auth import router as auth_router
 from app.api.clusters import router as clusters_router
+from app.api.insights import router as insights_router
 from app.api.ingest import router as ingest_router
+from app.api.search import router as search_router
 from app.config import settings
 from app.db import check_db_connection, close_db
 from app.logging_config import configure_logging
@@ -31,6 +34,9 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(ingest_router)
 app.include_router(clusters_router)
+app.include_router(insights_router)
+app.include_router(anomalies_router)
+app.include_router(search_router)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
