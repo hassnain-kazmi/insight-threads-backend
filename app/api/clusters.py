@@ -52,6 +52,8 @@ async def get_clusters_endpoint(
             total=total,
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving clusters for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(

@@ -15,3 +15,10 @@ class InsightResponse(BaseModel):
     llm_metadata: str | None = Field(None, description="LLM metadata JSON string")
     
     model_config = {"from_attributes": True}
+
+
+class InsightsListResponse(BaseModel):
+    """Response model for insights list."""
+    
+    insights: list[InsightResponse] = Field(..., description="List of insights")
+    total: int = Field(..., description="Total number of insights")
