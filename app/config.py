@@ -39,6 +39,11 @@ class GlobalConfig(BaseSettings):
 
     GITHUB_TOKEN: Optional[str] = None
 
+    OLLAMA_BASE_URL: str
+    OLLAMA_MODEL: str
+    OLLAMA_TIMEOUT: int
+    OLLAMA_MAX_RETRIES: int
+
     def _build_database_url(self, driver: str) -> str:
         """Build database URL with proper URL encoding."""
         user = quote_plus(self.POSTGRES_USER)
