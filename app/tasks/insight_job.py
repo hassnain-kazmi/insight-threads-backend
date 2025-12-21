@@ -21,7 +21,7 @@ MAX_DOCUMENT_SAMPLES = 5
 MAX_KEYWORDS = 10
 
 
-@celery_app.task(bind=True, name="app.tasks.insight_job.generate_cluster_insights")
+@celery_app.task(bind=True, name="app.tasks.insight_job.generate_cluster_insights", queue="llm")
 def generate_cluster_insights(
     self: Task,
     user_id: str | None = None,
@@ -33,9 +33,10 @@ def generate_cluster_insights(
 
     This task:
       1. Selects clusters (optionally filtered by user or specific cluster)
-      2. For each cluster, gathers keywords, document samples, sentiment, and anomalies
-      3. Calls Ollama to generate an insight
-      4. Stores the insight in the `insights` table (replaces existing for idempotency)
+      2. For each cluster, checks if an insight already exists (skips if found)
+      3. If no insight exists, gathers keywords, document samples, sentiment, and anomalies
+      4. Calls Ollama to generate an insight
+      5. Stores the insight in the `insights` table
 
     Args:
         user_id: Optional user ID to filter clusters
@@ -90,11 +91,24 @@ def generate_cluster_insights(
             logger.info("Found %d clusters to process for insights", len(clusters))
 
             insights_generated = 0
+            insights_skipped = 0
             errors = []
 
             try:
                 for cluster in clusters:
                     try:
+                        existing_insight = db.execute(
+                            sa.select(Insight).where(Insight.cluster_id == cluster.id)
+                        ).scalar_one_or_none()
+
+                        if existing_insight:
+                            insights_skipped += 1
+                            logger.debug(
+                                "Insight already exists for cluster %s, skipping generation",
+                                cluster.id,
+                            )
+                            continue
+
                         insight = _generate_insight_for_cluster(
                             db=db,
                             client=client,
@@ -103,12 +117,6 @@ def generate_cluster_insights(
                         )
 
                         if insight:
-                            db.execute(
-                                sa.delete(Insight).where(
-                                    Insight.cluster_id == cluster.id
-                                )
-                            )
-
                             db.add(insight)
                             insights_generated += 1
                             logger.debug(
@@ -137,9 +145,10 @@ def generate_cluster_insights(
                 raise
 
             logger.info(
-                "Insight generation job completed: %d clusters, %d insights generated, %d errors",
+                "Insight generation job completed: %d clusters, %d insights generated, %d skipped, %d errors",
                 len(clusters),
                 insights_generated,
+                insights_skipped,
                 len(errors),
             )
 
@@ -149,6 +158,7 @@ def generate_cluster_insights(
                 "cluster_id": cluster_id,
                 "clusters_processed": len(clusters),
                 "insights_generated": insights_generated,
+                "insights_skipped": insights_skipped,
                 "errors": errors if errors else None,
                 "task_id": self.request.id,
             }
@@ -274,7 +284,7 @@ def _calculate_confidence(response: Any) -> float:
     return max(0.1, min(1.0, base_confidence))
 
 
-@celery_app.task(name="app.tasks.insight_job.generate_single_insight")
+@celery_app.task(name="app.tasks.insight_job.generate_single_insight", queue="llm")
 def generate_single_insight(
     cluster_id: str,
     template_name: str = "insight_template",
@@ -318,6 +328,22 @@ def generate_single_insight(
                     "message": f"Cluster {cluster_id} not found",
                     "cluster_id": cluster_id,
                 }
+                
+            existing_insight = db.execute(
+                sa.select(Insight).where(Insight.cluster_id == cluster.id)
+            ).scalar_one_or_none()
+
+            if existing_insight:
+                logger.info(
+                    "Insight already exists for cluster %s, skipping generation",
+                    cluster_id,
+                )
+                return {
+                    "status": "skipped",
+                    "message": "Insight already exists for this cluster",
+                    "cluster_id": cluster_id,
+                    "insight_text": existing_insight.insight_text,
+                }
 
             try:
                 insight = _generate_insight_for_cluster(
@@ -328,9 +354,6 @@ def generate_single_insight(
                 )
 
                 if insight:
-                    db.execute(
-                        sa.delete(Insight).where(Insight.cluster_id == cluster.id)
-                    )
                     db.add(insight)
                     db.commit()
 
@@ -353,6 +376,9 @@ def generate_single_insight(
                     "message": str(e),
                     "cluster_id": cluster_id,
                 }
+            except Exception as e:
+                logger.error("Unexpected error generating insight for cluster %s: %s", cluster_id, e, exc_info=True)
+                raise RuntimeError(f"Failed to generate insight: {e}") from e
 
     except ValueError as e:
         logger.error("Invalid cluster_id: %s", e)
