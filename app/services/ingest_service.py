@@ -32,6 +32,7 @@ async def create_and_enqueue_ingestion(
     """
     ingest_event = IngestEvent(
         user_id=user.id,
+        source=source,
         status="pending",
     )
     db.add(ingest_event)

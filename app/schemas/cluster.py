@@ -3,6 +3,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.anomaly import AnomalyResponse
+from app.schemas.insight import InsightResponse
+
 
 class ClusterResponse(BaseModel):
     """Response model for cluster."""
@@ -63,6 +66,8 @@ class ClusterDetailResponse(BaseModel):
     updated_at: datetime = Field(..., description="Cluster last update timestamp")
     keywords: list[KeywordResponse] = Field(default_factory=list, description="Keywords associated with cluster")
     timeseries: list[TimeseriesSummaryResponse] = Field(default_factory=list, description="Timeseries summaries for cluster")
+    insights: list[InsightResponse] = Field(default_factory=list, description="AI-generated insights for cluster")
+    anomalies: list[AnomalyResponse] = Field(default_factory=list, description="Anomalies detected for cluster")
     
     model_config = {"from_attributes": True}
 

@@ -21,7 +21,7 @@ async def get_ingest_events_endpoint(
     db: AsyncSession = Depends(get_db),
     limit: int = 100,
     offset: int = 0,
-    status: str | None = Query(None, description="Filter by ingestion status"),
+    event_status: str | None = Query(None, description="Filter by ingestion status", alias="status"),
 ) -> IngestEventsListResponse:
     """
     Get ingest events for the authenticated user.
@@ -45,7 +45,7 @@ async def get_ingest_events_endpoint(
             db=db,
             limit=limit,
             offset=offset,
-            status=status,
+            status=event_status,
         )
         
         event_responses = [IngestEventResponse.model_validate(event) for event in events]

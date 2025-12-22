@@ -24,6 +24,7 @@ class IngestEventResponse(BaseModel):
     
     id: UUID = Field(..., description="Ingest event unique identifier")
     user_id: UUID = Field(..., description="User unique identifier")
+    source: str | None = Field(None, description="Source type (rss, hackernews, github)")
     started_at: datetime = Field(..., description="Ingestion start timestamp")
     completed_at: datetime | None = Field(None, description="Ingestion completion timestamp")
     status: str = Field(..., description="Ingestion status")

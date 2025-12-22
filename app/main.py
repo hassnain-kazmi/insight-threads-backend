@@ -11,6 +11,7 @@ from app.api.ingest import router as ingest_router
 from app.api.ingest_events import router as ingest_events_router
 from app.api.insights import router as insights_router
 from app.api.search import router as search_router
+from app.api.umap import router as umap_router
 from app.config import settings
 from app.db import check_db_connection, close_db
 from app.logging_config import configure_logging
@@ -41,6 +42,7 @@ app.include_router(clusters_router)
 app.include_router(insights_router)
 app.include_router(anomalies_router)
 app.include_router(search_router)
+app.include_router(umap_router)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
