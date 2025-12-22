@@ -18,7 +18,7 @@ from app.services.ingest.github import DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT, in
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, name="app.tasks.ingest.process_ingestion")
+@celery_app.task(bind=True, name="app.tasks.ingest_job.process_ingestion")
 def process_ingestion(
     self: Task,
     ingest_event_id: str,
@@ -172,7 +172,7 @@ def process_ingestion(
                         if document.id not in embedded_document_ids:
                             try:
                                 celery_app.send_task(
-                                    "app.tasks.embed.compute_document_embedding",
+                                    "app.tasks.embed_job.compute_document_embedding",
                                     args=[str(document.id), DEFAULT_MODEL_NAME],
                                 )
                                 embedding_tasks_enqueued += 1

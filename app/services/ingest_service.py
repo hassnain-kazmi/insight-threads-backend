@@ -40,7 +40,7 @@ async def create_and_enqueue_ingestion(
     
     try:
         task = celery_app.send_task(
-            "app.tasks.ingest.process_ingestion",
+            "app.tasks.ingest_job.process_ingestion",
             args=[str(ingest_event.id), str(user.id), source, source_params or {}],
         )
     except Exception as celery_error:

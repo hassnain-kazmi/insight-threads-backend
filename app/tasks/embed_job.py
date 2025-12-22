@@ -14,7 +14,7 @@ from app.models import Document, DocumentEmbedding, DocumentSentiment
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, name="app.tasks.embed.compute_document_embedding")
+@celery_app.task(bind=True, name="app.tasks.embed_job.compute_document_embedding")
 def compute_document_embedding(
     self: Task,
     document_id: str,

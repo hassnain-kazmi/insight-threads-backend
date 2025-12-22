@@ -8,7 +8,7 @@ from app.api.auth import router as auth_router
 from app.api.clusters import router as clusters_router
 from app.api.documents import router as documents_router
 from app.api.ingest import router as ingest_router
-from app.api.ingest_events import router as ingest_events_router
+from app.api.ingest_event import router as ingest_events_router
 from app.api.insights import router as insights_router
 from app.api.search import router as search_router
 from app.api.umap import router as umap_router
