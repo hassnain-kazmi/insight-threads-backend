@@ -9,7 +9,7 @@ from app.celery_app import celery_app
 from app.db import get_sync_db
 from app.ml.anomaly import detect_anomalies_for_cluster
 from app.models import Anomaly, Cluster
-from app.services.trending import DEFAULT_LOOKBACK_DAYS, calculate_trending_score
+from app.services.trending_service import DEFAULT_LOOKBACK_DAYS, calculate_trending_score
 
 logger = logging.getLogger(__name__)
 
