@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS ingest_events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    source VARCHAR(64),
     started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     completed_at TIMESTAMPTZ,
     status VARCHAR(64) NOT NULL,
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS clusters (
     centroid_384 VECTOR(384),
     document_count INTEGER NOT NULL DEFAULT 0,
     avg_sentiment DOUBLE PRECISION,
+    trending_score DOUBLE PRECISION,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -85,6 +87,9 @@ CREATE TABLE IF NOT EXISTS timeseries_summary (
     summary_date DATE NOT NULL,
     mention_count INTEGER NOT NULL DEFAULT 0,
     avg_sentiment DOUBLE PRECISION,
+    momentum DOUBLE PRECISION,
+    forecast_lower DOUBLE PRECISION,
+    forecast_upper DOUBLE PRECISION,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_timeseries_cluster_date UNIQUE (cluster_id, summary_date)
 );
@@ -106,4 +111,14 @@ CREATE TABLE IF NOT EXISTS insights (
     confidence DOUBLE PRECISION,
     generated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     llm_metadata TEXT
+);
+
+CREATE TABLE IF NOT EXISTS umap_projections (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    model_name VARCHAR(128) NOT NULL,
+    x DOUBLE PRECISION NOT NULL,
+    y DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_umap_projections_document_model UNIQUE (document_id, model_name)
 );

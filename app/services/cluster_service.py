@@ -71,7 +71,9 @@ async def get_cluster_detail(
         select(Cluster)
         .options(
             selectinload(Cluster.keywords),
-            selectinload(Cluster.timeseries)
+            selectinload(Cluster.timeseries),
+            selectinload(Cluster.insights),
+            selectinload(Cluster.anomalies)
         )
         .where(
             Cluster.id == cluster_id,

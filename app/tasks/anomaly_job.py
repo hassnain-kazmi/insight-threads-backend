@@ -137,11 +137,31 @@ def detect_cluster_anomalies(
                 total_anomalies,
             )
 
+            insight_job_enqueued = False
+            if len(cluster_ids) > 0:
+                try:
+                    celery_app.send_task(
+                        "app.tasks.insight_job.generate_cluster_insights",
+                        kwargs={"user_id": user_id},
+                    )
+                    insight_job_enqueued = True
+                    logger.info(
+                        "Enqueued insight generation job for user %s after anomaly detection",
+                        user_id if user_id else "all users",
+                    )
+                except Exception as insight_error:
+                    logger.error(
+                        "Failed to enqueue insight generation job: %s",
+                        insight_error,
+                        exc_info=True,
+                    )
+
             return {
                 "status": "completed",
                 "user_id": user_id,
                 "clusters_processed": len(cluster_ids),
                 "anomalies_detected": total_anomalies,
+                "insight_job_enqueued": insight_job_enqueued,
                 "task_id": self.request.id,
             }
 

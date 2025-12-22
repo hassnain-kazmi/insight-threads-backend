@@ -6,8 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.models import User
-from app.schemas.document import DocumentResponse, DocumentsListResponse
-from app.services.document_service import get_document, get_documents
+from app.schemas.document import (
+    ClusterMembershipResponse,
+    DocumentDetailResponse,
+    DocumentResponse,
+    DocumentSentimentResponse,
+    DocumentsListResponse,
+)
+from app.services.document_service import get_document_detail, get_documents
 from app.utils.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -23,12 +29,16 @@ async def get_documents_endpoint(
     offset: int = 0,
     processed: bool | None = Query(None, description="Filter by processed status"),
     ingest_event_id: str | None = Query(None, description="Filter by ingest event ID"),
+    cluster_id: str | None = Query(None, description="Filter by cluster ID"),
+    source_type: str | None = Query(None, description="Filter by source type (rss, hackernews, github)"),
+    sentiment_min: float | None = Query(None, description="Minimum sentiment score (-1 to 1)"),
+    sentiment_max: float | None = Query(None, description="Maximum sentiment score (-1 to 1)"),
 ) -> DocumentsListResponse:
     """
     Get documents for the authenticated user.
     
-    Returns documents with optional filters by processed status and ingest event.
-    Only returns documents owned by the authenticated user.
+    Returns documents with optional filters by processed status, ingest event, cluster,
+    source type, and sentiment range. Only returns documents owned by the authenticated user.
     
     Args:
         current_user: Authenticated user from JWT token
@@ -37,6 +47,10 @@ async def get_documents_endpoint(
         offset: Number of results to skip (default: 0)
         processed: Optional filter by processed status
         ingest_event_id: Optional filter by ingest event ID (UUID)
+        cluster_id: Optional filter by cluster ID (UUID)
+        source_type: Optional filter by source type (rss, hackernews, github)
+        sentiment_min: Optional minimum sentiment score filter (-1 to 1)
+        sentiment_max: Optional maximum sentiment score filter (-1 to 1)
         
     Returns:
         DocumentsListResponse with filtered documents
@@ -52,6 +66,34 @@ async def get_documents_endpoint(
                     detail="Invalid ingest event ID format",
                 )
         
+        cluster_uuid = None
+        if cluster_id:
+            try:
+                cluster_uuid = UUID(cluster_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid cluster ID format",
+                )
+        
+        if sentiment_min is not None and (sentiment_min < -1 or sentiment_min > 1):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="sentiment_min must be between -1 and 1",
+            )
+        
+        if sentiment_max is not None and (sentiment_max < -1 or sentiment_max > 1):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="sentiment_max must be between -1 and 1",
+            )
+        
+        if sentiment_min is not None and sentiment_max is not None and sentiment_min > sentiment_max:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="sentiment_min must be less than or equal to sentiment_max",
+            )
+        
         documents, total = await get_documents(
             user_id=current_user.id,
             db=db,
@@ -59,6 +101,10 @@ async def get_documents_endpoint(
             offset=offset,
             processed=processed,
             ingest_event_id=ingest_event_uuid,
+            cluster_id=cluster_uuid,
+            source_type=source_type,
+            sentiment_min=sentiment_min,
+            sentiment_max=sentiment_max,
         )
         
         document_responses = [DocumentResponse.model_validate(doc) for doc in documents]
@@ -78,16 +124,17 @@ async def get_documents_endpoint(
         )
 
 
-@router.get("/{document_id}", status_code=status.HTTP_200_OK, response_model=DocumentResponse)
+@router.get("/{document_id}", status_code=status.HTTP_200_OK, response_model=DocumentDetailResponse)
 async def get_document_endpoint(
     document_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> DocumentResponse:
+) -> DocumentDetailResponse:
     """
-    Get document by ID.
+    Get document by ID with full details.
     
-    Returns document details. Only returns documents owned by the authenticated user.
+    Returns document details including raw text, sentiment, and cluster memberships.
+    Only returns documents owned by the authenticated user.
     
     Args:
         document_id: Document unique identifier (UUID)
@@ -95,7 +142,7 @@ async def get_document_endpoint(
         db: Database session
         
     Returns:
-        DocumentResponse with document details
+        DocumentDetailResponse with document details including relationships
         
     Raises:
         HTTPException: 404 if document not found or not owned by user
@@ -109,7 +156,7 @@ async def get_document_endpoint(
                 detail="Invalid document ID format",
             )
         
-        document = await get_document(
+        document = await get_document_detail(
             document_id=document_uuid,
             user_id=current_user.id,
             db=db,
@@ -121,7 +168,30 @@ async def get_document_endpoint(
                 detail="Document not found",
             )
         
-        return DocumentResponse.model_validate(document)
+        sentiment_data = None
+        if document.sentiments:
+            sentiment = document.sentiments[0]
+            sentiment_data = DocumentSentimentResponse.model_validate(sentiment)
+        
+        cluster_memberships_data = [
+            ClusterMembershipResponse.model_validate(membership)
+            for membership in document.cluster_memberships
+        ]
+        
+        return DocumentDetailResponse(
+            id=document.id,
+            user_id=document.user_id,
+            ingest_event_id=document.ingest_event_id,
+            source_path=document.source_path,
+            title=document.title,
+            raw_text=document.raw_text,
+            processed=document.processed,
+            processed_at=document.processed_at,
+            created_at=document.created_at,
+            updated_at=document.updated_at,
+            sentiment=sentiment_data,
+            cluster_memberships=cluster_memberships_data,
+        )
         
     except HTTPException:
         raise

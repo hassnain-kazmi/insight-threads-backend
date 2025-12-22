@@ -270,7 +270,7 @@ def run_clustering_job(
                     )
                     timeseries_job_enqueued = True
                     logger.info(
-                        f"Enqueued timeseries job for user {user_id} after clustering"
+                        f"Enqueued timeseries job {f'for user {user_id}' if user_id else 'for all users'} after clustering"
                     )
                 except Exception as ts_error:
                     logger.error(

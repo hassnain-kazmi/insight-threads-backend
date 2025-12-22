@@ -21,7 +21,7 @@ MAX_DOCUMENT_SAMPLES = 5
 MAX_KEYWORDS = 10
 
 
-@celery_app.task(bind=True, name="app.tasks.insight_job.generate_cluster_insights", queue="llm")
+@celery_app.task(bind=True, name="app.tasks.insight_job.generate_cluster_insights")
 def generate_cluster_insights(
     self: Task,
     user_id: str | None = None,
@@ -284,7 +284,7 @@ def _calculate_confidence(response: Any) -> float:
     return max(0.1, min(1.0, base_confidence))
 
 
-@celery_app.task(name="app.tasks.insight_job.generate_single_insight", queue="llm")
+@celery_app.task(name="app.tasks.insight_job.generate_single_insight")
 def generate_single_insight(
     cluster_id: str,
     template_name: str = "insight_template",
