@@ -13,9 +13,9 @@ async def get_current_user_info(
 ) -> UserResponse:
     """
     Get current authenticated user information.
-    
+
     Requires a valid Supabase JWT token in the Authorization header.
-    
+
     Returns:
         User information if authenticated successfully.
     """
@@ -24,4 +24,3 @@ async def get_current_user_info(
         email=current_user.email,
         name=current_user.name,
     )
-

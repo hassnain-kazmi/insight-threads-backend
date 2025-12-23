@@ -50,7 +50,9 @@ def _compute_daily_aggregates_for_cluster(
             {
                 "summary_date": row.summary_date,
                 "mention_count": int(row.mention_count or 0),
-                "sentiment_avg": float(row.sentiment_avg) if row.sentiment_avg is not None else None,
+                "sentiment_avg": float(row.sentiment_avg)
+                if row.sentiment_avg is not None
+                else None,
             }
         )
 
@@ -197,5 +199,3 @@ def build_timeseries_for_cluster(
 
     result.sort(key=lambda r: r["summary_date"])
     return result
-
-

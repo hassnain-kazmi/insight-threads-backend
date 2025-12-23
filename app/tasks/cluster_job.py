@@ -38,12 +38,12 @@ def run_clustering_job(
     cluster_selection_epsilon: float = 0.0,
     keyword_method: str = "tfidf",
     n_keywords: int = 10,
-    process_recent_only: bool = True,
+    process_recent_only: bool = False,
     days_recent: int = 7,
 ) -> dict[str, Any]:
     """
     Celery task to cluster document embeddings using HDBSCAN and extract keywords.
-    
+
     This task:
     1. Retrieves document embeddings (optionally filtered by user and recency)
     2. Filters out documents that already have cluster memberships
@@ -52,7 +52,7 @@ def run_clustering_job(
     5. Creates ClusterMember records
     6. Extracts keywords for each cluster using TF-IDF or KeyBERT
     7. Calculates average sentiment per cluster
-    
+
     Args:
         user_id: Optional UUID of user to filter embeddings by. If None, processes all users.
         model_name: Name of the embedding model to use (default: DEFAULT_MODEL_NAME)
@@ -63,11 +63,11 @@ def run_clustering_job(
         n_keywords: Number of keywords to extract per cluster (default: 10)
         process_recent_only: If True, only process documents from recent days (default: True)
         days_recent: Number of days to consider "recent" (default: 7)
-        
+
     Returns:
         dict: Task result with status, counts, and metadata.
               Status can be "completed" or "skipped" (when no embeddings found).
-        
+
     Raises:
         RuntimeError: If clustering or database operations fail
     """
@@ -75,30 +75,30 @@ def run_clustering_job(
         f"Starting clustering job for model {model_name}"
         f"{f' (user_id: {user_id})' if user_id else ' (all users)'}"
     )
-    
+
     try:
         with get_sync_db() as db:
             user_uuid = UUID(user_id) if user_id else None
-            
+
             query = (
                 select(DocumentEmbedding)
                 .join(Document)
                 .where(DocumentEmbedding.model_name == model_name)
             )
-            
+
             if user_uuid:
                 query = query.where(Document.user_id == user_uuid)
-            
+
             if process_recent_only:
                 cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_recent)
                 query = query.where(Document.created_at >= cutoff_date)
-            
+
             clustered_docs_subquery = select(ClusterMember.document_id).distinct()
             query = query.where(~Document.id.in_(clustered_docs_subquery))
-            
+
             result = db.execute(query)
             embeddings = result.unique().scalars().all()
-            
+
             if not embeddings:
                 error_msg = (
                     f"No unclustered embeddings found for model {model_name}"
@@ -113,14 +113,14 @@ def run_clustering_job(
                     "user_id": user_id,
                     "clusters_created": 0,
                 }
-            
+
             logger.info(f"Found {len(embeddings)} unclustered embeddings to cluster")
-            
+
             doc_ids = [emb.document_id for emb in embeddings]
             docs_query = select(Document).where(Document.id.in_(doc_ids))
             docs_result = db.execute(docs_query)
             documents = {doc.id: doc for doc in docs_result.scalars().all()}
-            
+
             embeddings_by_user: dict[UUID, list[DocumentEmbedding]] = {}
             for emb in embeddings:
                 doc = documents.get(emb.document_id)
@@ -128,11 +128,11 @@ def run_clustering_job(
                     if doc.user_id not in embeddings_by_user:
                         embeddings_by_user[doc.user_id] = []
                     embeddings_by_user[doc.user_id].append(emb)
-            
+
             total_clusters_created = 0
             total_members_created = 0
             total_keywords_created = 0
-            
+
             for user_uuid, user_embeddings in embeddings_by_user.items():
                 if len(user_embeddings) < min_cluster_size:
                     logger.debug(
@@ -140,12 +140,14 @@ def run_clustering_job(
                         f"skipping (min_cluster_size={min_cluster_size})"
                     )
                     continue
-                
-                logger.info(f"Clustering {len(user_embeddings)} embeddings for user {user_uuid}")
-                
+
+                logger.info(
+                    f"Clustering {len(user_embeddings)} embeddings for user {user_uuid}"
+                )
+
                 embedding_vectors = [emb.embedding for emb in user_embeddings]
                 document_ids = [emb.document_id for emb in user_embeddings]
-                
+
                 try:
                     logger.info("Computing HDBSCAN clusters...")
                     cluster_labels, clusterer = compute_hdbscan_clusters(
@@ -154,41 +156,55 @@ def run_clustering_job(
                         min_samples=min_samples,
                         cluster_selection_epsilon=cluster_selection_epsilon,
                     )
-                    
+
                     clusters_dict: dict[int, list[tuple[UUID, list[float]]]] = {}
-                    for label, doc_id, emb_vec in zip(cluster_labels, document_ids, embedding_vectors):
+                    for label, doc_id, emb_vec in zip(
+                        cluster_labels, document_ids, embedding_vectors
+                    ):
                         if label != -1:
                             if label not in clusters_dict:
                                 clusters_dict[label] = []
                             clusters_dict[label].append((doc_id, emb_vec))
-                    
+
                     if not clusters_dict:
-                        logger.warning(f"No clusters found for user {user_uuid} (all points are noise)")
+                        logger.warning(
+                            f"No clusters found for user {user_uuid} (all points are noise)"
+                        )
                         continue
-                    
-                    logger.info(f"Found {len(clusters_dict)} clusters for user {user_uuid}")
-                    
+
+                    logger.info(
+                        f"Found {len(clusters_dict)} clusters for user {user_uuid}"
+                    )
+
                     for cluster_label, members in clusters_dict.items():
                         member_doc_ids = [doc_id for doc_id, _ in members]
                         member_embeddings = [emb_vec for _, emb_vec in members]
-                        
+
                         centroid = compute_cluster_centroid(member_embeddings)
-                        
-                        cluster_documents = [documents[doc_id] for doc_id in member_doc_ids if doc_id in documents]
-                        
+
+                        cluster_documents = [
+                            documents[doc_id]
+                            for doc_id in member_doc_ids
+                            if doc_id in documents
+                        ]
+
                         sentiments_query = select(DocumentSentiment).where(
                             DocumentSentiment.document_id.in_(member_doc_ids)
                         )
                         sentiments_result = db.execute(sentiments_query)
                         sentiments = sentiments_result.scalars().all()
-                        
+
                         avg_sentiment = None
                         if sentiments:
                             combined_scores = [
-                                s.combined_score for s in sentiments if s.combined_score is not None
+                                s.combined_score
+                                for s in sentiments
+                                if s.combined_score is not None
                             ]
                             if combined_scores:
-                                avg_sentiment = sum(combined_scores) / len(combined_scores)
+                                avg_sentiment = sum(combined_scores) / len(
+                                    combined_scores
+                                )
 
                         cluster = Cluster(
                             user_id=user_uuid,
@@ -203,9 +219,11 @@ def run_clustering_job(
                         centroid_array = np.array([centroid])
                         for doc_id, doc_emb in members:
                             doc_emb_array = np.array([doc_emb])
-                            similarity = cosine_similarity(centroid_array, doc_emb_array)[0][0]
+                            similarity = cosine_similarity(
+                                centroid_array, doc_emb_array
+                            )[0][0]
                             membership_strength = float(similarity)
-                            
+
                             member = ClusterMember(
                                 cluster_id=cluster.id,
                                 document_id=doc_id,
@@ -214,9 +232,11 @@ def run_clustering_job(
                             db.add(member)
 
                         cluster_texts = [
-                            doc.raw_text for doc in cluster_documents if doc.raw_text and doc.raw_text.strip()
+                            doc.raw_text
+                            for doc in cluster_documents
+                            if doc.raw_text and doc.raw_text.strip()
                         ]
-                        
+
                         if cluster_texts:
                             try:
                                 keywords = extract_keywords(
@@ -224,7 +244,7 @@ def run_clustering_job(
                                     method=keyword_method,
                                     n_keywords=n_keywords,
                                 )
-                                
+
                                 for keyword, weight in keywords:
                                     keyword_obj = Keyword(
                                         cluster_id=cluster.id,
@@ -233,21 +253,21 @@ def run_clustering_job(
                                     )
                                     db.add(keyword_obj)
                                     total_keywords_created += 1
-                                
+
                             except Exception as e:
                                 logger.warning(
                                     f"Failed to extract keywords for cluster {cluster.id}: {e}",
                                     exc_info=True,
                                 )
-                        
+
                         total_clusters_created += 1
                         total_members_created += len(member_doc_ids)
-                    
+
                     db.commit()
                     logger.info(
                         f"Successfully created {len(clusters_dict)} clusters for user {user_uuid}"
                     )
-                    
+
                 except Exception as e:
                     db.rollback()
                     logger.error(
@@ -255,13 +275,15 @@ def run_clustering_job(
                         exc_info=True,
                     )
                     continue
-            
+
             logger.info(
                 f"Clustering job completed: {total_clusters_created} clusters, "
                 f"{total_members_created} members, {total_keywords_created} keywords"
             )
-            
+
             timeseries_job_enqueued = False
+            umap_job_enqueued = False
+
             if total_clusters_created > 0:
                 try:
                     celery_app.send_task(
@@ -277,7 +299,25 @@ def run_clustering_job(
                         f"Failed to enqueue timeseries job: {ts_error}",
                         exc_info=True,
                     )
-            
+
+                try:
+                    celery_app.send_task(
+                        "app.tasks.umap_job.compute_umap_projections",
+                        kwargs={
+                            "user_id": user_id,
+                            "model_name": model_name,
+                        },
+                    )
+                    umap_job_enqueued = True
+                    logger.info(
+                        f"Enqueued UMAP job {f'for user {user_id}' if user_id else 'for all users'} after clustering"
+                    )
+                except Exception as umap_error:
+                    logger.error(
+                        f"Failed to enqueue UMAP job: {umap_error}",
+                        exc_info=True,
+                    )
+
             return {
                 "status": "completed",
                 "model_name": model_name,
@@ -287,9 +327,10 @@ def run_clustering_job(
                 "members_created": total_members_created,
                 "keywords_created": total_keywords_created,
                 "timeseries_job_enqueued": timeseries_job_enqueued,
+                "umap_job_enqueued": umap_job_enqueued,
                 "task_id": self.request.id,
             }
-            
+
     except ValueError as e:
         logger.error(f"Value error in clustering job: {e}")
         raise
@@ -299,4 +340,3 @@ def run_clustering_job(
             exc_info=True,
         )
         raise RuntimeError(f"Failed to run clustering job: {e}") from e
-

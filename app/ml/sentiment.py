@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_DISTILBERT_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"
 
 _vader_analyzer: Optional[SentimentIntensityAnalyzer] = None
-_distilbert_pipelines: dict[str, "pipeline"] = {}
+_distilbert_pipelines: dict = {}
 
 
 def get_vader_analyzer() -> SentimentIntensityAnalyzer:
@@ -143,5 +143,3 @@ def analyze_sentiment(
         "distilbert_label": distilbert_label,
         "combined_score": combined,
     }
-
-

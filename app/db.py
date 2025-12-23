@@ -57,13 +57,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def close_db() -> None:
     """Close database connections."""
     await engine.dispose()
+    sync_engine.dispose()
     logger.info("Database connections closed")
 
 
 async def check_db_connection() -> bool:
     """
     Check if database connection is healthy.
-    
+
     Returns:
         True if connection is successful, False otherwise.
     """
@@ -80,7 +81,7 @@ async def check_db_connection() -> bool:
 def get_sync_db() -> Generator[Session, None, None]:
     """
     Context manager for getting synchronous database session (for Celery tasks).
-    
+
     Yields:
         Session: Synchronous database session
     """

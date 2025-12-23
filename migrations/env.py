@@ -15,12 +15,14 @@ if config.config_file_name:
 
 target_metadata = Base.metadata
 
+
 def get_url() -> str:
     """Get database URL from config system."""
     from app.config import get_config
-    
+
     app_config = get_config()
     return app_config.database_url_sync
+
 
 def run_migrations_offline() -> None:
     context.configure(
@@ -32,14 +34,18 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_url()
-    connectable = engine_from_config(configuration, prefix="sqlalchemy.", poolclass=pool.NullPool)
+    connectable = engine_from_config(
+        configuration, prefix="sqlalchemy.", poolclass=pool.NullPool
+    )
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()

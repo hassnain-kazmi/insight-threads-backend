@@ -12,7 +12,9 @@ class TimeseriesSummary(Base):
         UUID(as_uuid=True), primary_key=True, default=generate_uuid
     )
     cluster_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("clusters.id", ondelete="CASCADE"),
+        nullable=False,
     )
     summary_date: Mapped[Date] = mapped_column(Date, nullable=False)
     mention_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -25,4 +27,3 @@ class TimeseriesSummary(Base):
     )
 
     cluster = relationship("Cluster", back_populates="timeseries")
-

@@ -10,13 +10,18 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("timeseries_summary", sa.Column("momentum", sa.Float(), nullable=True))
-    op.add_column("timeseries_summary", sa.Column("forecast_lower", sa.Float(), nullable=True))
-    op.add_column("timeseries_summary", sa.Column("forecast_upper", sa.Float(), nullable=True))
+    op.add_column(
+        "timeseries_summary", sa.Column("momentum", sa.Float(), nullable=True)
+    )
+    op.add_column(
+        "timeseries_summary", sa.Column("forecast_lower", sa.Float(), nullable=True)
+    )
+    op.add_column(
+        "timeseries_summary", sa.Column("forecast_upper", sa.Float(), nullable=True)
+    )
 
 
 def downgrade() -> None:
     op.drop_column("timeseries_summary", "forecast_upper")
     op.drop_column("timeseries_summary", "forecast_lower")
     op.drop_column("timeseries_summary", "momentum")
-

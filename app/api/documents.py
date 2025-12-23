@@ -30,16 +30,22 @@ async def get_documents_endpoint(
     processed: bool | None = Query(None, description="Filter by processed status"),
     ingest_event_id: str | None = Query(None, description="Filter by ingest event ID"),
     cluster_id: str | None = Query(None, description="Filter by cluster ID"),
-    source_type: str | None = Query(None, description="Filter by source type (rss, hackernews, github)"),
-    sentiment_min: float | None = Query(None, description="Minimum sentiment score (-1 to 1)"),
-    sentiment_max: float | None = Query(None, description="Maximum sentiment score (-1 to 1)"),
+    source_type: str | None = Query(
+        None, description="Filter by source type (rss, hackernews, github)"
+    ),
+    sentiment_min: float | None = Query(
+        None, description="Minimum sentiment score (-1 to 1)"
+    ),
+    sentiment_max: float | None = Query(
+        None, description="Maximum sentiment score (-1 to 1)"
+    ),
 ) -> DocumentsListResponse:
     """
     Get documents for the authenticated user.
-    
+
     Returns documents with optional filters by processed status, ingest event, cluster,
     source type, and sentiment range. Only returns documents owned by the authenticated user.
-    
+
     Args:
         current_user: Authenticated user from JWT token
         db: Database session
@@ -51,7 +57,7 @@ async def get_documents_endpoint(
         source_type: Optional filter by source type (rss, hackernews, github)
         sentiment_min: Optional minimum sentiment score filter (-1 to 1)
         sentiment_max: Optional maximum sentiment score filter (-1 to 1)
-        
+
     Returns:
         DocumentsListResponse with filtered documents
     """
@@ -65,7 +71,7 @@ async def get_documents_endpoint(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid ingest event ID format",
                 )
-        
+
         cluster_uuid = None
         if cluster_id:
             try:
@@ -75,25 +81,29 @@ async def get_documents_endpoint(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid cluster ID format",
                 )
-        
+
         if sentiment_min is not None and (sentiment_min < -1 or sentiment_min > 1):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="sentiment_min must be between -1 and 1",
             )
-        
+
         if sentiment_max is not None and (sentiment_max < -1 or sentiment_max > 1):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="sentiment_max must be between -1 and 1",
             )
-        
-        if sentiment_min is not None and sentiment_max is not None and sentiment_min > sentiment_max:
+
+        if (
+            sentiment_min is not None
+            and sentiment_max is not None
+            and sentiment_min > sentiment_max
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="sentiment_min must be less than or equal to sentiment_max",
             )
-        
+
         documents, total = await get_documents(
             user_id=current_user.id,
             db=db,
@@ -106,23 +116,31 @@ async def get_documents_endpoint(
             sentiment_min=sentiment_min,
             sentiment_max=sentiment_max,
         )
-        
+
         document_responses = [DocumentResponse.model_validate(doc) for doc in documents]
-        
+
         return DocumentsListResponse(
             documents=document_responses,
             total=total,
         )
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error retrieving documents for user {current_user.id}: {e}", exc_info=True)
+        logger.error(
+            f"Error retrieving documents for user {current_user.id}: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve documents",
         )
 
 
-@router.get("/{document_id}", status_code=status.HTTP_200_OK, response_model=DocumentDetailResponse)
+@router.get(
+    "/{document_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=DocumentDetailResponse,
+)
 async def get_document_endpoint(
     document_id: str,
     current_user: User = Depends(get_current_user),
@@ -130,18 +148,18 @@ async def get_document_endpoint(
 ) -> DocumentDetailResponse:
     """
     Get document by ID with full details.
-    
+
     Returns document details including raw text, sentiment, and cluster memberships.
     Only returns documents owned by the authenticated user.
-    
+
     Args:
         document_id: Document unique identifier (UUID)
         current_user: Authenticated user from JWT token
         db: Database session
-        
+
     Returns:
         DocumentDetailResponse with document details including relationships
-        
+
     Raises:
         HTTPException: 404 if document not found or not owned by user
     """
@@ -153,29 +171,29 @@ async def get_document_endpoint(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid document ID format",
             )
-        
+
         document = await get_document_detail(
             document_id=document_uuid,
             user_id=current_user.id,
             db=db,
         )
-        
+
         if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Document not found",
             )
-        
+
         sentiment_data = None
         if document.sentiments:
             sentiment = document.sentiments[0]
             sentiment_data = DocumentSentimentResponse.model_validate(sentiment)
-        
+
         cluster_memberships_data = [
             ClusterMembershipResponse.model_validate(membership)
             for membership in document.cluster_memberships
         ]
-        
+
         return DocumentDetailResponse(
             id=document.id,
             user_id=document.user_id,
@@ -190,11 +208,15 @@ async def get_document_endpoint(
             sentiment=sentiment_data,
             cluster_memberships=cluster_memberships_data,
         )
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error retrieving document {document_id} for user {current_user.id}: {e}", exc_info=True)
+        logger.error(
+            f"Error retrieving document {document_id} for user {current_user.id}: {e}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve document",
         )
-
