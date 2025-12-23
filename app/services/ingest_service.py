@@ -17,16 +17,16 @@ async def create_and_enqueue_ingestion(
 ) -> tuple[IngestEvent, str]:
     """
     Create an ingestion event and enqueue the processing task.
-    
+
     Args:
         user: The user initiating the ingestion
         db: Database session
         source: Source type
         source_params: Source-specific parameters
-        
+
     Returns:
         Tuple of (IngestEvent, task_id)
-        
+
     Raises:
         Exception: If task enqueue fails (e.g., Celery unavailable) or database operation fails
     """
@@ -37,7 +37,7 @@ async def create_and_enqueue_ingestion(
     )
     db.add(ingest_event)
     await db.flush()
-    
+
     try:
         task = celery_app.send_task(
             "app.tasks.ingest_job.process_ingestion",
@@ -47,14 +47,13 @@ async def create_and_enqueue_ingestion(
         await db.rollback()
         logger.error(f"Failed to enqueue Celery task: {celery_error}", exc_info=True)
         raise
-    
+
     await db.commit()
     await db.refresh(ingest_event)
-    
+
     logger.info(
         f"Created ingestion event {ingest_event.id} for user {user.id}, "
         f"task_id: {task.id}"
     )
-    
-    return ingest_event, task.id
 
+    return ingest_event, task.id

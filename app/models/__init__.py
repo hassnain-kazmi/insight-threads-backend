@@ -12,6 +12,7 @@ class Base(DeclarativeBase):
 def generate_uuid() -> uuid.UUID:
     return uuid.uuid4()
 
+
 from .user import User  # noqa: E402,F401
 from .document import Document  # noqa: E402,F401
 from .ingest_event import IngestEvent  # noqa: E402,F401
@@ -24,4 +25,3 @@ from .timeseries_summary import TimeseriesSummary  # noqa: E402,F401
 from .anomaly import Anomaly  # noqa: E402,F401
 from .insight import Insight  # noqa: E402,F401
 from .umap_projection import UMAPProjection  # noqa: E402,F401
-

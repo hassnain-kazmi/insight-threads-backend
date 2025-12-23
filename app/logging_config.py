@@ -1,14 +1,14 @@
 from logging.config import dictConfig
 from pathlib import Path
 
-from app.config import DevConfig, settings
+from app.config import settings
 
 
 def configure_logging() -> None:
     """Configure logging with console and file handlers."""
     logs_dir = Path(__file__).parent.parent / "logs"
     logs_dir.mkdir(exist_ok=True)
-    
+
     dictConfig(
         {
             "version": 1,
@@ -45,10 +45,9 @@ def configure_logging() -> None:
                 "uvicorn": {"handlers": ["default", "file"], "level": "INFO"},
                 "app": {
                     "handlers": ["default", "file"],
-                    "level": "DEBUG" if isinstance(settings, DevConfig) else "INFO",
+                    "level": "DEBUG" if settings.DEBUG else "INFO",
                     "propagate": False,
                 },
             },
         }
     )
-

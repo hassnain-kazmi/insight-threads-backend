@@ -13,7 +13,9 @@ from app.models import Cluster, TimeseriesSummary
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, name="app.tasks.timeseries_job.compute_timeseries_summaries")
+@celery_app.task(
+    bind=True, name="app.tasks.timeseries_job.compute_timeseries_summaries"
+)
 def compute_timeseries_summaries(
     self: Task,
     user_id: str | None = None,
@@ -143,5 +145,3 @@ def compute_timeseries_summaries(
             exc_info=True,
         )
         raise RuntimeError(f"Failed to compute timeseries summaries: {e}") from e
-
-

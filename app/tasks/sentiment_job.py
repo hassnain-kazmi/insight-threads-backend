@@ -48,7 +48,9 @@ def compute_document_sentiment(
                 raise ValueError(error_msg)
 
             if not document.raw_text or not document.raw_text.strip():
-                error_msg = f"Document {doc_uuid} has no text content for sentiment analysis"
+                error_msg = (
+                    f"Document {doc_uuid} has no text content for sentiment analysis"
+                )
                 logger.error(error_msg)
                 raise ValueError(error_msg)
 
@@ -84,7 +86,7 @@ def compute_document_sentiment(
                     combined_score=scores.get("combined_score"),
                 )
                 db.add(sentiment)
-                
+
                 if not document.processed:
                     embedding_result = db.execute(
                         select(DocumentEmbedding).where(
@@ -93,7 +95,7 @@ def compute_document_sentiment(
                         )
                     )
                     embedding_exists = embedding_result.scalar_one_or_none() is not None
-                    
+
                     if embedding_exists:
                         document.processed = True
                         document.processed_at = datetime.now(timezone.utc)
@@ -101,7 +103,7 @@ def compute_document_sentiment(
                             f"Marked document {doc_uuid} as processed "
                             f"(embedding and sentiment both exist)"
                         )
-                
+
                 db.commit()
                 db.refresh(sentiment)
 
@@ -133,5 +135,3 @@ def compute_document_sentiment(
             exc_info=True,
         )
         raise RuntimeError(f"Failed to compute sentiment: {e}") from e
-
-

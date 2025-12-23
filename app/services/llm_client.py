@@ -138,7 +138,7 @@ class OllamaClient:
                     self.max_retries,
                     url,
                 )
-        
+
                 logger.info("Sending request to Ollama (timeout=%ds)...", self.timeout)
 
                 response = requests.post(
@@ -147,8 +147,10 @@ class OllamaClient:
                     timeout=self.timeout,
                     headers={"Content-Type": "application/json"},
                 )
-                
-                logger.info("Received response from Ollama (status=%d)", response.status_code)
+
+                logger.info(
+                    "Received response from Ollama (status=%d)", response.status_code
+                )
 
                 if response.status_code != 200:
                     error_text = response.text[:500]
@@ -283,7 +285,9 @@ class OllamaClient:
         sentiment_label = _sentiment_to_label(avg_sentiment)
         keywords_str = ", ".join(cluster_keywords[:10])
         samples_str = "\n---\n".join(
-            [_truncate_text(doc, 300) for doc in document_samples[:4]]  # Reduced from 500 to 300, 5 to 4 samples
+            [
+                _truncate_text(doc, 300) for doc in document_samples[:4]
+            ]  # Reduced from 500 to 300, 5 to 4 samples
         )
         anomaly_section = anomaly_info or "No anomalies detected."
 
@@ -292,14 +296,16 @@ class OllamaClient:
             keywords=keywords_str,
             document_samples=samples_str,
             sentiment_label=sentiment_label,
-            sentiment_score=f"{avg_sentiment:.2f}" if avg_sentiment is not None else "N/A",
+            sentiment_score=f"{avg_sentiment:.2f}"
+            if avg_sentiment is not None
+            else "N/A",
             document_count=document_count or "Unknown",
             anomaly_info=anomaly_section,
         )
 
         return self.generate(
             prompt=prompt,
-            temperature=0.5,  
+            temperature=0.5,
             max_tokens=256,
         )
 
@@ -318,26 +324,6 @@ class OllamaClient:
             return response.status_code == 200
         except RequestException:
             return False
-
-    def list_models(self) -> list[str]:
-        """
-        List available models in Ollama.
-
-        Returns:
-            List of model names
-        """
-        try:
-            response = requests.get(
-                f"{self.base_url}/api/tags",
-                timeout=10,
-            )
-            if response.status_code == 200:
-                data = response.json()
-                return [m["name"] for m in data.get("models", [])]
-        except RequestException as e:
-            logger.warning("Failed to list Ollama models: %s", e)
-
-        return []
 
 
 def _sentiment_to_label(score: float | None) -> str:
@@ -367,4 +353,3 @@ def get_ollama_client() -> OllamaClient:
     if _client is None:
         _client = OllamaClient()
     return _client
-

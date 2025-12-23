@@ -11,10 +11,11 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add source column to ingest_events table."""
-    op.add_column("ingest_events", sa.Column("source", sa.String(length=64), nullable=True))
+    op.add_column(
+        "ingest_events", sa.Column("source", sa.String(length=64), nullable=True)
+    )
 
 
 def downgrade() -> None:
     """Remove source column from ingest_events table."""
     op.drop_column("ingest_events", "source")
-

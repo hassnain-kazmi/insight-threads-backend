@@ -22,36 +22,32 @@ def compute_document_embedding(
 ) -> dict[str, Any]:
     """
     Celery task to compute and save embedding for a document.
-    
+
     Args:
         document_id: UUID of the document to embed
         model_name: Name of the embedding model to use
-        
+
     Returns:
         dict: Task result with status, document_id, and embedding_id
-        
+
     Raises:
         ValueError: If document not found or embedding already exists
         RuntimeError: If embedding computation fails
     """
     doc_uuid = UUID(document_id)
-    
-    logger.info(
-        f"Computing embedding for document {doc_uuid} using model {model_name}"
-    )
-    
+
+    logger.info(f"Computing embedding for document {doc_uuid} using model {model_name}")
+
     try:
         with get_sync_db() as db:
-            result = db.execute(
-                select(Document).where(Document.id == doc_uuid)
-            )
+            result = db.execute(select(Document).where(Document.id == doc_uuid))
             document = result.scalar_one_or_none()
-            
+
             if not document:
                 error_msg = f"Document {doc_uuid} not found"
                 logger.error(error_msg)
                 raise ValueError(error_msg)
-            
+
             existing_result = db.execute(
                 select(DocumentEmbedding).where(
                     DocumentEmbedding.document_id == doc_uuid,
@@ -59,7 +55,7 @@ def compute_document_embedding(
                 )
             )
             existing = existing_result.scalar_one_or_none()
-            
+
             if existing:
                 logger.warning(
                     f"Embedding already exists for document {doc_uuid} "
@@ -72,23 +68,23 @@ def compute_document_embedding(
                     "model_name": model_name,
                     "message": "Embedding already exists",
                 }
-            
+
             if not document.raw_text or not document.raw_text.strip():
                 error_msg = f"Document {doc_uuid} has no text content to embed"
                 logger.error(error_msg)
                 raise ValueError(error_msg)
-            
+
             try:
                 logger.info(f"Computing embedding for document {doc_uuid}")
                 embedding_vector = compute_embedding(document.raw_text, model_name)
-                
+
                 document_embedding = DocumentEmbedding(
                     document_id=doc_uuid,
                     model_name=model_name,
                     embedding=embedding_vector,
                 )
                 db.add(document_embedding)
-                
+
                 if model_name == DEFAULT_MODEL_NAME and not document.processed:
                     sentiment_result = db.execute(
                         select(DocumentSentiment).where(
@@ -96,7 +92,7 @@ def compute_document_embedding(
                         )
                     )
                     sentiment_exists = sentiment_result.scalar_one_or_none() is not None
-                    
+
                     if sentiment_exists:
                         document.processed = True
                         document.processed_at = datetime.now(timezone.utc)
@@ -104,15 +100,15 @@ def compute_document_embedding(
                             f"Marked document {doc_uuid} as processed "
                             f"(embedding and sentiment both exist)"
                         )
-                
+
                 db.commit()
                 db.refresh(document_embedding)
-                
+
                 logger.info(
                     f"Successfully created embedding {document_embedding.id} "
                     f"for document {doc_uuid} using model {model_name}"
                 )
-                
+
                 return {
                     "status": "completed",
                     "document_id": document_id,
@@ -123,7 +119,7 @@ def compute_document_embedding(
             except Exception:
                 db.rollback()
                 raise
-            
+
     except ValueError as e:
         logger.error(f"Value error computing embedding for document {doc_uuid}: {e}")
         raise
@@ -133,4 +129,3 @@ def compute_document_embedding(
             exc_info=True,
         )
         raise RuntimeError(f"Failed to compute embedding: {e}") from e
-

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from celery import Task
+from celery import Task, chord, group
 from sqlalchemy import select
 
 from app.celery_app import celery_app
@@ -12,8 +12,14 @@ from app.db import get_sync_db
 from app.models import Document, DocumentEmbedding, DocumentSentiment, IngestEvent
 from app.ml.embeddings import DEFAULT_MODEL_NAME
 from app.services.ingest.rss import DEFAULT_LIMIT as RSS_DEFAULT_LIMIT, ingest_feeds
-from app.services.ingest.hackernews import DEFAULT_LIMIT as HN_DEFAULT_LIMIT, ingest_posts
-from app.services.ingest.github import DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT, ingest_repository
+from app.services.ingest.hackernews import (
+    DEFAULT_LIMIT as HN_DEFAULT_LIMIT,
+    ingest_posts,
+)
+from app.services.ingest.github import (
+    DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT,
+    ingest_repository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,25 +34,25 @@ def process_ingestion(
 ) -> dict[str, Any]:
     """
     Celery task to process ingestion event.
-    
+
     Args:
         ingest_event_id: UUID of the ingestion event
         user_id: UUID of the user initiating the ingestion
         source: Source type (e.g., 'rss')
         source_params: Source-specific parameters
-        
+
     Returns:
         dict: Task result with status, ingest_event_id, stats, and embedding_tasks_enqueued
     """
     ingest_uuid = UUID(ingest_event_id)
     user_uuid = UUID(user_id)
     source_params = source_params or {}
-    
+
     logger.info(
         f"Processing ingestion event {ingest_uuid} for user {user_uuid}, "
         f"source: {source}, params: {source_params}"
     )
-    
+
     try:
         with get_sync_db() as db:
             result = db.execute(
@@ -56,23 +62,27 @@ def process_ingestion(
                 )
             )
             event = result.scalar_one_or_none()
-            
+
             if not event:
-                logger.error(f"Ingest event {ingest_uuid} not found for user {user_uuid}")
-                raise ValueError(f"Ingest event {ingest_uuid} not found or access denied")
-            
+                logger.error(
+                    f"Ingest event {ingest_uuid} not found for user {user_uuid}"
+                )
+                raise ValueError(
+                    f"Ingest event {ingest_uuid} not found or access denied"
+                )
+
             event.status = "processing"
             db.commit()
-            
+
             logger.info(f"Ingestion event {ingest_uuid} marked as processing")
-            
+
             try:
                 if source == "rss":
                     feed_urls = source_params.get("feed_urls", [])
                     if isinstance(feed_urls, str):
                         feed_urls = [feed_urls]
                     limit = source_params.get("limit", RSS_DEFAULT_LIMIT)
-                    
+
                     stats = ingest_feeds(
                         db=db,
                         ingest_event_id=ingest_uuid,
@@ -83,7 +93,7 @@ def process_ingestion(
                 elif source == "hackernews":
                     endpoint = source_params.get("endpoint", "topstories")
                     limit = source_params.get("limit", HN_DEFAULT_LIMIT)
-                    
+
                     stats = ingest_posts(
                         db=db,
                         ingest_event_id=ingest_uuid,
@@ -95,17 +105,21 @@ def process_ingestion(
                     owner = source_params.get("owner", "")
                     repo = source_params.get("repo", "")
                     if not owner or not repo:
-                        raise ValueError("GitHub ingestion requires 'owner' and 'repo' parameters")
-                    
+                        raise ValueError(
+                            "GitHub ingestion requires 'owner' and 'repo' parameters"
+                        )
+
                     include_commits = source_params.get("include_commits", True)
                     include_issues = source_params.get("include_issues", True)
                     include_prs = source_params.get("include_prs", True)
                     include_releases = source_params.get("include_releases", True)
-                    limit_per_type = source_params.get("limit_per_type", GITHUB_DEFAULT_LIMIT)
+                    limit_per_type = source_params.get(
+                        "limit_per_type", GITHUB_DEFAULT_LIMIT
+                    )
                     commit_since = source_params.get("commit_since")
                     issue_state = source_params.get("issue_state", "all")
                     pr_state = source_params.get("pr_state", "all")
-                    
+
                     stats = ingest_repository(
                         db=db,
                         ingest_event_id=ingest_uuid,
@@ -123,25 +137,26 @@ def process_ingestion(
                     )
                 else:
                     raise ValueError(f"Unsupported source type: {source}")
-                
+
                 db.refresh(event)
                 event.status = "completed"
                 event.completed_at = datetime.now(timezone.utc)
                 db.commit()
-                
+
                 logger.info(
                     f"Ingestion event {ingest_uuid} completed: "
                     f"{stats['new_documents']} new documents created"
                 )
-                
+
                 documents_result = db.execute(
                     select(Document).where(Document.ingest_event_id == ingest_uuid)
                 )
                 documents = documents_result.scalars().all()
-                
+
                 embedding_tasks_enqueued = 0
                 sentiment_tasks_enqueued = 0
-                
+                pipeline_enqueued = False
+
                 if not documents:
                     logger.info(f"No documents found for ingestion event {ingest_uuid}")
                 else:
@@ -153,14 +168,21 @@ def process_ingestion(
                             DocumentEmbedding.model_name == DEFAULT_MODEL_NAME,
                         )
                     )
-                    embedded_document_ids = set(existing_embeddings_result.scalars().all())
+                    embedded_document_ids = set(
+                        existing_embeddings_result.scalars().all()
+                    )
 
                     existing_sentiments_result = db.execute(
                         select(DocumentSentiment.document_id).where(
                             DocumentSentiment.document_id.in_(document_ids),
                         )
                     )
-                    sentiment_document_ids = set(existing_sentiments_result.scalars().all())
+                    sentiment_document_ids = set(
+                        existing_sentiments_result.scalars().all()
+                    )
+
+                    embed_tasks = []
+                    sentiment_tasks = []
 
                     for document in documents:
                         if not document.raw_text or not document.raw_text.strip():
@@ -168,78 +190,57 @@ def process_ingestion(
                                 f"Skipping embedding/sentiment for document {document.id}: no text content"
                             )
                             continue
-                        
+
                         if document.id not in embedded_document_ids:
-                            try:
-                                celery_app.send_task(
+                            embed_tasks.append(
+                                celery_app.signature(
                                     "app.tasks.embed_job.compute_document_embedding",
                                     args=[str(document.id), DEFAULT_MODEL_NAME],
                                 )
-                                embedding_tasks_enqueued += 1
-                            except Exception as embed_error:
-                                logger.error(
-                                    f"Failed to enqueue embedding task for document {document.id}: {embed_error}",
-                                    exc_info=True,
-                                )
+                            )
+                            embedding_tasks_enqueued += 1
 
                         if document.id not in sentiment_document_ids:
-                            try:
-                                celery_app.send_task(
+                            sentiment_tasks.append(
+                                celery_app.signature(
                                     "app.tasks.sentiment_job.compute_document_sentiment",
                                     args=[str(document.id)],
                                 )
-                                sentiment_tasks_enqueued += 1
-                            except Exception as sentiment_error:
-                                logger.error(
-                                    f"Failed to enqueue sentiment task for document {document.id}: {sentiment_error}",
-                                    exc_info=True,
-                                )
+                            )
+                            sentiment_tasks_enqueued += 1
 
-                logger.info(
-                    f"Enqueued {embedding_tasks_enqueued} embedding tasks and "
-                    f"{sentiment_tasks_enqueued} sentiment tasks for ingestion event {ingest_uuid}"
-                )
+                    all_processing_tasks = embed_tasks + sentiment_tasks
 
-                umap_job_enqueued = False
-                clustering_job_enqueued = False
+                    if all_processing_tasks:
+                        cluster_task = celery_app.signature(
+                            "app.tasks.cluster_job.run_clustering_job",
+                            kwargs={
+                                "user_id": str(user_uuid),
+                                "model_name": DEFAULT_MODEL_NAME,
+                                "process_recent_only": False,
+                            },
+                            immutable=True,  # Ignore chord results as args
+                        )
 
-                try:
-                    celery_app.send_task(
-                        "app.tasks.umap_job.compute_umap_projections",
-                        kwargs={
-                            "user_id": str(user_uuid),
-                            "model_name": DEFAULT_MODEL_NAME,
-                        },
-                    )
-                    umap_job_enqueued = True
-                    logger.info(
-                        f"Enqueued UMAP projection job for user {user_uuid} "
-                        f"and model {DEFAULT_MODEL_NAME} after ingestion event {ingest_uuid}"
-                    )
-                except Exception as umap_error:
-                    logger.error(
-                        f"Failed to enqueue UMAP projection job after ingestion event {ingest_uuid}: {umap_error}",
-                        exc_info=True,
-                    )
-
-                try:
-                    celery_app.send_task(
-                        "app.tasks.cluster_job.run_clustering_job",
-                        kwargs={
-                            "user_id": str(user_uuid),
-                            "model_name": DEFAULT_MODEL_NAME,
-                        },
-                    )
-                    clustering_job_enqueued = True
-                    logger.info(
-                        f"Enqueued clustering job for user {user_uuid} "
-                        f"and model {DEFAULT_MODEL_NAME} after ingestion event {ingest_uuid}"
-                    )
-                except Exception as cluster_error:
-                    logger.error(
-                        f"Failed to enqueue clustering job after ingestion event {ingest_uuid}: {cluster_error}",
-                        exc_info=True,
-                    )
+                        try:
+                            chord(group(all_processing_tasks))(cluster_task)
+                            pipeline_enqueued = True
+                            logger.info(
+                                f"Enqueued pipeline: {len(all_processing_tasks)} embed/sentiment tasks → clustering"
+                            )
+                        except Exception as chord_error:
+                            logger.error(
+                                f"Failed to enqueue chord pipeline: {chord_error}",
+                                exc_info=True,
+                            )
+                            for task in all_processing_tasks:
+                                try:
+                                    task.apply_async()
+                                except Exception as task_error:
+                                    logger.error(
+                                        f"Failed to enqueue fallback task: {task_error}",
+                                        exc_info=True,
+                                    )
 
                 return {
                     "status": "completed",
@@ -248,17 +249,18 @@ def process_ingestion(
                     "stats": stats,
                     "embedding_tasks_enqueued": embedding_tasks_enqueued,
                     "sentiment_tasks_enqueued": sentiment_tasks_enqueued,
-                    "umap_job_enqueued": umap_job_enqueued,
-                    "clustering_job_enqueued": clustering_job_enqueued,
+                    "pipeline_enqueued": pipeline_enqueued,
                 }
-                    
+
             except Exception:
                 db.rollback()
                 raise
-            
+
     except Exception as e:
-        logger.error(f"Error processing ingestion event {ingest_uuid}: {e}", exc_info=True)
-        
+        logger.error(
+            f"Error processing ingestion event {ingest_uuid}: {e}", exc_info=True
+        )
+
         try:
             with get_sync_db() as db:
                 result = db.execute(
@@ -270,6 +272,8 @@ def process_ingestion(
                     event.error_message = str(e)
                     db.commit()
         except Exception as db_error:
-            logger.error(f"Failed to update event status to failed: {db_error}", exc_info=True)
-        
+            logger.error(
+                f"Failed to update event status to failed: {db_error}", exc_info=True
+            )
+
         raise

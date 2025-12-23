@@ -40,7 +40,7 @@ class GlobalConfig(BaseSettings):
     GITHUB_TOKEN: Optional[str] = None
 
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "phi3" 
+    OLLAMA_MODEL: str = "phi3"
     OLLAMA_TIMEOUT: int = 300
     OLLAMA_MAX_RETRIES: int = 3
     OLLAMA_CONTEXT_SIZE: int = 2048
@@ -101,16 +101,16 @@ class ProdConfig(GlobalConfig):
 def get_config(env_state: Optional[str] = None) -> GlobalConfig:
     """
     Factory function to get configuration based on ENV_STATE.
-    
+
     Args:
         env_state: Environment state ('dev' or 'prod'). If None, reads from BaseConfig.
-    
+
     Returns:
         DevConfig if env_state='dev', otherwise ProdConfig.
     """
     if env_state is None:
         env_state = BaseConfig().ENV_STATE or "prod"
-    
+
     configs = {"dev": DevConfig, "prod": ProdConfig}
     return configs.get(env_state.lower(), ProdConfig)()
 

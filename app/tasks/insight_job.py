@@ -1,4 +1,3 @@
-
 import json
 import logging
 from typing import Any
@@ -315,9 +314,7 @@ def generate_single_insight(
         with get_sync_db() as db:
             cluster_uuid = UUID(cluster_id)
 
-            result = db.execute(
-                sa.select(Cluster).where(Cluster.id == cluster_uuid)
-            )
+            result = db.execute(sa.select(Cluster).where(Cluster.id == cluster_uuid))
             cluster = result.scalar_one_or_none()
 
             if not cluster:
@@ -326,7 +323,7 @@ def generate_single_insight(
                     "message": f"Cluster {cluster_id} not found",
                     "cluster_id": cluster_id,
                 }
-                
+
             existing_insight = db.execute(
                 sa.select(Insight).where(Insight.cluster_id == cluster.id)
             ).scalar_one_or_none()
@@ -375,7 +372,12 @@ def generate_single_insight(
                     "cluster_id": cluster_id,
                 }
             except Exception as e:
-                logger.error("Unexpected error generating insight for cluster %s: %s", cluster_id, e, exc_info=True)
+                logger.error(
+                    "Unexpected error generating insight for cluster %s: %s",
+                    cluster_id,
+                    e,
+                    exc_info=True,
+                )
                 raise RuntimeError(f"Failed to generate insight: {e}") from e
 
     except ValueError as e:
@@ -385,4 +387,3 @@ def generate_single_insight(
     except Exception as e:
         logger.error("Error generating insight: %s", e, exc_info=True)
         raise RuntimeError(f"Failed to generate insight: {e}") from e
-

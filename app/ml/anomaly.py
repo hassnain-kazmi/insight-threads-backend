@@ -71,11 +71,15 @@ def detect_volume_anomalies(
         List of anomaly dicts with keys: date, score, type, metadata
     """
     if not (0 < contamination <= 0.5):
-        logger.warning("Invalid contamination value %f, using default 0.1", contamination)
+        logger.warning(
+            "Invalid contamination value %f, using default 0.1", contamination
+        )
         contamination = 0.1
 
     if len(timeseries_data) < 3:
-        logger.debug("Insufficient timeseries data for volume anomaly detection (need at least 3 points)")
+        logger.debug(
+            "Insufficient timeseries data for volume anomaly detection (need at least 3 points)"
+        )
         return []
 
     features, dates = _prepare_timeseries_features(timeseries_data)
@@ -91,16 +95,18 @@ def detect_volume_anomalies(
         for i, (d, score, is_anomaly) in enumerate(zip(dates, scores, labels)):
             if is_anomaly:
                 mention_count = timeseries_data[i].get("mention_count", 0)
-                anomalies.append({
-                    "date": d,
-                    "score": float(score),
-                    "type": "volume_spike",
-                    "metadata": {
-                        "mention_count": mention_count,
-                        "model": "IForest",
-                        "contamination": contamination,
-                    },
-                })
+                anomalies.append(
+                    {
+                        "date": d,
+                        "score": float(score),
+                        "type": "volume_spike",
+                        "metadata": {
+                            "mention_count": mention_count,
+                            "model": "IForest",
+                            "contamination": contamination,
+                        },
+                    }
+                )
 
         return anomalies
     except Exception as e:
@@ -123,11 +129,15 @@ def detect_sentiment_anomalies(
         List of anomaly dicts with keys: date, score, type, metadata
     """
     if not (0 < contamination <= 0.5):
-        logger.warning("Invalid contamination value %f, using default 0.1", contamination)
+        logger.warning(
+            "Invalid contamination value %f, using default 0.1", contamination
+        )
         contamination = 0.1
 
     if len(timeseries_data) < 3:
-        logger.debug("Insufficient timeseries data for sentiment anomaly detection (need at least 3 points)")
+        logger.debug(
+            "Insufficient timeseries data for sentiment anomaly detection (need at least 3 points)"
+        )
         return []
 
     features, dates = _prepare_timeseries_features(timeseries_data)
@@ -135,7 +145,9 @@ def detect_sentiment_anomalies(
 
     try:
         n_samples = sentiment_features.shape[0]
-        model = LOF(contamination=contamination, n_neighbors=min(5, max(1, n_samples - 1)))
+        model = LOF(
+            contamination=contamination, n_neighbors=min(5, max(1, n_samples - 1))
+        )
         model.fit(sentiment_features)
         scores = model.decision_scores_
         labels = model.labels_
@@ -145,17 +157,23 @@ def detect_sentiment_anomalies(
             if is_anomaly:
                 sentiment = timeseries_data[i].get("avg_sentiment")
                 momentum = timeseries_data[i].get("momentum")
-                anomalies.append({
-                    "date": d,
-                    "score": float(score),
-                    "type": "sentiment_spike",
-                    "metadata": {
-                        "avg_sentiment": float(sentiment) if sentiment is not None else None,
-                        "momentum": float(momentum) if momentum is not None else None,
-                        "model": "LOF",
-                        "contamination": contamination,
-                    },
-                })
+                anomalies.append(
+                    {
+                        "date": d,
+                        "score": float(score),
+                        "type": "sentiment_spike",
+                        "metadata": {
+                            "avg_sentiment": float(sentiment)
+                            if sentiment is not None
+                            else None,
+                            "momentum": float(momentum)
+                            if momentum is not None
+                            else None,
+                            "model": "LOF",
+                            "contamination": contamination,
+                        },
+                    }
+                )
 
         return anomalies
     except Exception as e:
@@ -204,8 +222,12 @@ def detect_anomalies_for_cluster(
         for row in timeseries_rows
     ]
 
-    volume_anomalies = detect_volume_anomalies(timeseries_data, contamination=contamination)
-    sentiment_anomalies = detect_sentiment_anomalies(timeseries_data, contamination=contamination)
+    volume_anomalies = detect_volume_anomalies(
+        timeseries_data, contamination=contamination
+    )
+    sentiment_anomalies = detect_sentiment_anomalies(
+        timeseries_data, contamination=contamination
+    )
 
     all_anomalies = volume_anomalies + sentiment_anomalies
 
@@ -218,4 +240,3 @@ def detect_anomalies_for_cluster(
     )
 
     return all_anomalies
-

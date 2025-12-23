@@ -49,13 +49,15 @@ app.include_router(umap_router)
 async def health_check() -> JSONResponse:
     """
     Health check endpoint.
-    
+
     Returns:
         JSON response with health status and database connection status.
     """
     db_healthy = await check_db_connection()
-    status_code = status.HTTP_200_OK if db_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
-    
+    status_code = (
+        status.HTTP_200_OK if db_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
+
     return JSONResponse(
         status_code=status_code,
         content={

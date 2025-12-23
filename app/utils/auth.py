@@ -22,19 +22,19 @@ async def get_current_user(
 ) -> User:
     """
     Validate Supabase JWT token and return the authenticated user.
-    
+
     Args:
         credentials: HTTP Bearer token from Authorization header
         db: Database session
-        
+
     Returns:
         User: Authenticated user object
-        
+
     Raises:
         HTTPException: If token is invalid, expired, or user not found
     """
     token = credentials.credentials
-    
+
     try:
         payload = jwt.decode(
             token,
@@ -42,7 +42,7 @@ async def get_current_user(
             algorithms=["HS256"],
             options={"verify_signature": True, "verify_exp": True},
         )
-        
+
         user_id_str = payload.get("sub")
         if not user_id_str:
             logger.warning("JWT token missing 'sub' claim")
@@ -62,16 +62,16 @@ async def get_current_user(
 
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
-        
+
         if not user:
             logger.warning(f"User not found for ID: {user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
             )
-        
+
         return user
-        
+
     except jwt.ExpiredSignatureError:
         logger.warning("JWT token expired")
         raise HTTPException(
@@ -90,4 +90,3 @@ async def get_current_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication error",
         )
-

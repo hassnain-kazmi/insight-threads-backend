@@ -22,17 +22,19 @@ async def get_anomalies_endpoint(
     db: AsyncSession = Depends(get_db),
     cluster_id: str | None = Query(None, description="Filter by cluster ID"),
     anomaly_type: str | None = Query(None, description="Filter by anomaly type"),
-    start_date: date | None = Query(None, description="Filter anomalies from this date"),
+    start_date: date | None = Query(
+        None, description="Filter anomalies from this date"
+    ),
     end_date: date | None = Query(None, description="Filter anomalies until this date"),
     limit: int = 100,
     offset: int = 0,
 ) -> AnomaliesListResponse:
     """
     Get anomalies for the authenticated user.
-    
+
     Returns anomalies filtered by cluster, type, and date range.
     Only returns anomalies for clusters owned by the authenticated user.
-    
+
     Args:
         current_user: Authenticated user from JWT token
         db: Database session
@@ -42,7 +44,7 @@ async def get_anomalies_endpoint(
         end_date: Optional end date filter
         limit: Maximum number of results (default: 100)
         offset: Number of results to skip (default: 0)
-        
+
     Returns:
         AnomaliesListResponse with filtered anomalies
     """
@@ -56,7 +58,7 @@ async def get_anomalies_endpoint(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid cluster ID format",
                 )
-        
+
         anomalies, total = await get_anomalies(
             user_id=current_user.id,
             db=db,
@@ -67,16 +69,22 @@ async def get_anomalies_endpoint(
             limit=limit,
             offset=offset,
         )
-        
-        anomaly_responses = [AnomalyResponse.model_validate(anomaly) for anomaly in anomalies]
-        
+
+        anomaly_responses = [
+            AnomalyResponse.model_validate(anomaly) for anomaly in anomalies
+        ]
+
         return AnomaliesListResponse(
             anomalies=anomaly_responses,
             total=total,
         )
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error retrieving anomalies for user {current_user.id}: {e}", exc_info=True)
+        logger.error(
+            f"Error retrieving anomalies for user {current_user.id}: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve anomalies",
