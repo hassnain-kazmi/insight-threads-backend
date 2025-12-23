@@ -55,8 +55,6 @@ async def get_ingest_events_endpoint(
             total=total,
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving ingest events for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(
@@ -111,8 +109,6 @@ async def get_ingest_event_endpoint(
         
         return IngestEventResponse.model_validate(event)
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving ingest event {event_id} for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(

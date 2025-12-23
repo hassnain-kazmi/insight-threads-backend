@@ -68,8 +68,6 @@ async def search_documents_endpoint(
             query=query,
         )
         
-    except HTTPException:
-        raise
     except (ValueError, RuntimeError) as e:
         logger.error(f"Invalid query or embedding computation failed: {e}", exc_info=True)
         raise HTTPException(

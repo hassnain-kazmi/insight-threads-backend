@@ -80,8 +80,6 @@ async def get_cluster_umap_endpoint(
             total=len(document_responses),
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving UMAP projections for cluster {cluster_id}: {e}", exc_info=True)
         raise HTTPException(

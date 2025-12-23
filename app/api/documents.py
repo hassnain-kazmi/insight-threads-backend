@@ -114,8 +114,6 @@ async def get_documents_endpoint(
             total=total,
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving documents for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(
@@ -193,8 +191,6 @@ async def get_document_endpoint(
             cluster_memberships=cluster_memberships_data,
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving document {document_id} for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(
