@@ -52,8 +52,6 @@ async def get_clusters_endpoint(
             total=total,
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving clusters for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(
@@ -108,8 +106,6 @@ async def get_cluster_detail_endpoint(
         
         return ClusterDetailResponse.model_validate(cluster)
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving cluster {cluster_id} for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(

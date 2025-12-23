@@ -1,6 +1,4 @@
-"""
-Celery task for generating cluster insights using Ollama LLM.
-"""
+
 import json
 import logging
 from typing import Any
@@ -26,7 +24,7 @@ def generate_cluster_insights(
     self: Task,
     user_id: str | None = None,
     cluster_id: str | None = None,
-    template_name: str = "insight_template",
+    template_name: str = "insight_template_brief",
 ) -> dict[str, Any]:
     """
     Celery task to generate insights for clusters using Ollama LLM.
@@ -41,7 +39,7 @@ def generate_cluster_insights(
     Args:
         user_id: Optional user ID to filter clusters
         cluster_id: Optional specific cluster ID to process
-        template_name: Prompt template to use (default: "insight_template")
+        template_name: Prompt template to use (default: "insight_template_brief")
 
     Returns:
         Dict with status, clusters_processed, insights_generated, task_id
@@ -287,7 +285,7 @@ def _calculate_confidence(response: Any) -> float:
 @celery_app.task(name="app.tasks.insight_job.generate_single_insight")
 def generate_single_insight(
     cluster_id: str,
-    template_name: str = "insight_template",
+    template_name: str = "insight_template_brief",
 ) -> dict[str, Any]:
     """
     Generate insight for a single cluster.

@@ -65,8 +65,6 @@ async def get_insights_endpoint(
             total=total,
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving insights for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(
@@ -120,8 +118,6 @@ async def get_insight_endpoint(
         
         return InsightResponse.model_validate(insight)
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error retrieving insight {insight_id} for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(
