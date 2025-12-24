@@ -40,7 +40,11 @@ async def get_current_user(
             token,
             settings.SUPABASE_JWT_SECRET,
             algorithms=["HS256"],
-            options={"verify_signature": True, "verify_exp": True},
+            options={
+                "verify_signature": True,
+                "verify_exp": True,
+                "verify_aud": False, 
+            },
         )
 
         user_id_str = payload.get("sub")

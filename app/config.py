@@ -22,28 +22,30 @@ class GlobalConfig(BaseSettings):
 
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
-    POSTGRES_HOST: str = "localhost"
-    POSTGRES_PORT: str = "5433"
+    POSTGRES_HOST: str
+    POSTGRES_PORT: str
     POSTGRES_DB: str
 
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: str = "6379"
+    REDIS_HOST: str
+    REDIS_PORT: str
 
     SUPABASE_URL: str
     SUPABASE_JWT_SECRET: str
     SUPABASE_SERVICE_KEY: str
     SUPABASE_STORAGE_BUCKET: str
 
+    CORS_ORIGINS: str
+
     GITHUB_TOKEN: Optional[str] = None
 
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "phi3"
-    OLLAMA_TIMEOUT: int = 300
-    OLLAMA_MAX_RETRIES: int = 3
-    OLLAMA_CONTEXT_SIZE: int = 2048
+    OLLAMA_BASE_URL: str
+    OLLAMA_MODEL: str
+    OLLAMA_TIMEOUT: int
+    OLLAMA_MAX_RETRIES: int
+    OLLAMA_CONTEXT_SIZE: int
 
     def _build_database_url(self, driver: str) -> str:
         """Build database URL with proper URL encoding."""
