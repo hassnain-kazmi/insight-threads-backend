@@ -9,7 +9,13 @@ from sqlalchemy import select
 from app.celery_app import celery_app
 
 from app.db import get_sync_db
-from app.models import Document, DocumentEmbedding, DocumentSentiment, IngestEvent
+from app.models import (
+    Document,
+    DocumentEmbedding,
+    DocumentSentiment,
+    IngestEvent,
+    UserIngestionPreference,
+)
 from app.ml.embeddings import DEFAULT_MODEL_NAME
 from app.services.ingest.rss import DEFAULT_LIMIT as RSS_DEFAULT_LIMIT, ingest_feeds
 from app.services.ingest.hackernews import (
@@ -18,7 +24,7 @@ from app.services.ingest.hackernews import (
 )
 from app.services.ingest.github import (
     DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT,
-    ingest_repository,
+    ingest_repositories,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,23 +97,60 @@ def process_ingestion(
                         limit=limit,
                     )
                 elif source == "hackernews":
-                    endpoint = source_params.get("endpoint", "topstories")
-                    limit = source_params.get("limit", HN_DEFAULT_LIMIT)
+                    endpoints = source_params.get("endpoints") or source_params.get("endpoint")
+                    if endpoints is None:
+                        endpoints = ["topstories"]
+                    elif isinstance(endpoints, str):
+                        endpoints = [endpoints]
+                    
+                    limit = source_params.get("limit_per_endpoint") or source_params.get(
+                        "limit", HN_DEFAULT_LIMIT
+                    )
 
                     stats = ingest_posts(
                         db=db,
                         ingest_event_id=ingest_uuid,
                         user_id=user_uuid,
-                        endpoint=endpoint,
+                        endpoints=endpoints,
                         limit=limit,
                     )
                 elif source == "github":
-                    owner = source_params.get("owner", "")
-                    repo = source_params.get("repo", "")
-                    if not owner or not repo:
-                        raise ValueError(
-                            "GitHub ingestion requires 'owner' and 'repo' parameters"
-                        )
+                    repos = source_params.get("repos")
+                    
+                    logger.info(f"GitHub repos parameter: {repos}, type: {type(repos)}")
+                    
+                    if repos is not None:
+                        if not isinstance(repos, list):
+                            try:
+                                repos = list(repos) if hasattr(repos, '__iter__') and not isinstance(repos, str) else None
+                                logger.info(f"Converted repos to list: {repos}")
+                            except (TypeError, ValueError) as e:
+                                logger.warning(f"Could not convert repos to list: {e}, repos={repos}")
+                                repos = None
+                    
+                    if repos is None:
+                        owner = source_params.get("owner") or ""
+                        repo = source_params.get("repo") or ""
+                        if not owner or not owner.strip() or not repo or not repo.strip():
+                            raise ValueError(
+                                "GitHub ingestion requires 'owner' and 'repo' parameters "
+                                "(both non-empty), or 'repos' array"
+                            )
+                        repos = [{"owner": owner.strip(), "repo": repo.strip()}]
+                    elif isinstance(repos, list):
+                        if not repos:
+                            raise ValueError("GitHub ingestion 'repos' array cannot be empty")
+                        for repo_item in repos:
+                            if not isinstance(repo_item, dict):
+                                raise ValueError(
+                                    "Each item in 'repos' array must be an object with 'owner' and 'repo'"
+                                )
+                            if "owner" not in repo_item or "repo" not in repo_item:
+                                raise ValueError(
+                                    "Each item in 'repos' array must have 'owner' and 'repo' fields"
+                                )
+                    else:
+                        raise ValueError("GitHub ingestion 'repos' must be an array")
 
                     include_commits = source_params.get("include_commits", True)
                     include_issues = source_params.get("include_issues", True)
@@ -120,12 +163,11 @@ def process_ingestion(
                     issue_state = source_params.get("issue_state", "all")
                     pr_state = source_params.get("pr_state", "all")
 
-                    stats = ingest_repository(
+                    stats = ingest_repositories(
                         db=db,
                         ingest_event_id=ingest_uuid,
                         user_id=user_uuid,
-                        owner=owner,
-                        repo=repo,
+                        repos=repos,
                         include_commits=include_commits,
                         include_issues=include_issues,
                         include_prs=include_prs,
@@ -141,6 +183,29 @@ def process_ingestion(
                 db.refresh(event)
                 event.status = "completed"
                 event.completed_at = datetime.now(timezone.utc)
+                
+                # Save/update user ingestion preference for periodic ingestion
+                preference_result = db.execute(
+                    select(UserIngestionPreference).where(
+                        UserIngestionPreference.user_id == user_uuid,
+                        UserIngestionPreference.source == source,
+                    )
+                )
+                preference = preference_result.scalar_one_or_none()
+                
+                if preference:
+                    # Update existing preference
+                    preference.source_params = source_params
+                    # updated_at is automatically updated by onupdate=func.now()
+                else:
+                    # Create new preference
+                    preference = UserIngestionPreference(
+                        user_id=user_uuid,
+                        source=source,
+                        source_params=source_params,
+                    )
+                    db.add(preference)
+                
                 db.commit()
 
                 logger.info(
@@ -219,7 +284,7 @@ def process_ingestion(
                                 "model_name": DEFAULT_MODEL_NAME,
                                 "process_recent_only": False,
                             },
-                            immutable=True,  # Ignore chord results as args
+                            immutable=True,
                         )
 
                         try:

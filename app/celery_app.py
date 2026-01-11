@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import settings
 
@@ -15,6 +16,7 @@ celery_app = Celery(
         "app.tasks.timeseries_job",
         "app.tasks.anomaly_job",
         "app.tasks.insight_job",
+        "app.tasks.periodic_ingest_job",
     ],
 )
 
@@ -29,4 +31,10 @@ celery_app.conf.update(
     task_soft_time_limit=25 * 60,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
+    beat_schedule={
+        "periodic-ingestion-every-24-hours": {
+            "task": "app.tasks.periodic_ingest_job.trigger_periodic_ingestion",
+            "schedule": crontab(hour=0, minute=0),
+        },
+    },
 )

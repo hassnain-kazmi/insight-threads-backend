@@ -122,3 +122,12 @@ CREATE TABLE IF NOT EXISTS umap_projections (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_umap_projections_document_model UNIQUE (document_id, model_name)
 );
+
+CREATE TABLE IF NOT EXISTS user_ingestion_preferences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    source VARCHAR(64) NOT NULL,
+    source_params JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_user_ingestion_preference_user_source UNIQUE (user_id, source)
+);

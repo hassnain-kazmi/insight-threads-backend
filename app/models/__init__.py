@@ -25,3 +25,4 @@ from .timeseries_summary import TimeseriesSummary  # noqa: E402,F401
 from .anomaly import Anomaly  # noqa: E402,F401
 from .insight import Insight  # noqa: E402,F401
 from .umap_projection import UMAPProjection  # noqa: E402,F401
+from .user_ingestion_preference import UserIngestionPreference  # noqa: E402,F401
