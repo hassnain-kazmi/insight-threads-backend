@@ -27,3 +27,6 @@ class User(Base):
     clusters = relationship(
         "Cluster", back_populates="user", cascade="all, delete-orphan"
     )
+    ingestion_preferences = relationship(
+        "UserIngestionPreference", back_populates="user", cascade="all, delete-orphan"
+    )

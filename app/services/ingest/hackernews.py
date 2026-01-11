@@ -184,7 +184,7 @@ def ingest_posts(
     db: Session,
     ingest_event_id: UUID,
     user_id: UUID,
-    endpoint: str = "topstories",
+    endpoints: str | list[str] = "topstories",
     limit: int = DEFAULT_LIMIT,
 ) -> dict[str, int]:
     """
@@ -194,21 +194,40 @@ def ingest_posts(
         db: Database session
         ingest_event_id: UUID of the ingestion event
         user_id: UUID of the user
-        endpoint: Hacker News API endpoint ('topstories', 'newstories', 'beststories', etc.)
-        limit: Maximum number of posts to fetch
+        endpoints: Hacker News API endpoint(s) - single string or list of strings
+                   ('topstories', 'newstories', 'beststories', etc.)
+        limit: Maximum number of posts to fetch per endpoint
 
     Returns:
         Dictionary with ingestion statistics (total_fetched, new_documents,
         duplicates, errors). Returns zeros if no posts fetched.
     """
+    if isinstance(endpoints, str):
+        endpoints_list = [endpoints]
+    else:
+        endpoints_list = endpoints
+
+    if not endpoints_list:
+        logger.warning("No Hacker News endpoints provided")
+        return {
+            "total_fetched": 0,
+            "new_documents": 0,
+            "duplicates": 0,
+            "errors": 0,
+        }
+
     logger.info(
-        f"Starting Hacker News ingestion from {endpoint}, "
-        f"limit={limit}, event={ingest_event_id}"
+        f"Starting Hacker News ingestion from {len(endpoints_list)} endpoint(s): {endpoints_list}, "
+        f"limit={limit} per endpoint, event={ingest_event_id}"
     )
 
-    posts = _fetch_posts(endpoint, limit)
+    all_posts: list[dict[str, Any]] = []
+    for endpoint in endpoints_list:
+        posts = _fetch_posts(endpoint, limit)
+        all_posts.extend(posts)
+        logger.info(f"Fetched {len(posts)} posts from {endpoint} endpoint")
 
-    if not posts:
+    if not all_posts:
         logger.warning("No posts fetched from Hacker News API")
         return {
             "total_fetched": 0,
@@ -217,14 +236,14 @@ def ingest_posts(
             "errors": 0,
         }
 
-    logger.info(f"Fetched {len(posts)} posts from Hacker News API")
+    logger.info(f"Fetched {len(all_posts)} total posts from {len(endpoints_list)} endpoint(s)")
 
     new_documents = 0
     duplicates = 0
     errors = 0
 
     try:
-        for post in posts:
+        for post in all_posts:
             try:
                 normalized = _normalize_post(post)
 
@@ -269,7 +288,7 @@ def ingest_posts(
         raise
 
     stats = {
-        "total_fetched": len(posts),
+        "total_fetched": len(all_posts),
         "new_documents": new_documents,
         "duplicates": duplicates,
         "errors": errors,

@@ -567,12 +567,11 @@ def _normalize_release(release: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def ingest_repository(
+def ingest_repositories(
     db: Session,
     ingest_event_id: UUID,
     user_id: UUID,
-    owner: str,
-    repo: str,
+    repos: list[dict[str, str]],
     include_commits: bool = True,
     include_issues: bool = True,
     include_prs: bool = True,
@@ -583,62 +582,28 @@ def ingest_repository(
     pr_state: str = "all",
 ) -> dict[str, int]:
     """
-    Ingest GitHub repository activity and create documents.
+    Ingest GitHub repository activity and create documents from multiple repositories.
 
     Args:
         db: Database session
         ingest_event_id: UUID of the ingestion event
         user_id: UUID of the user
-        owner: Repository owner (username or organization)
-        repo: Repository name
+        repos: List of repository dicts, each with 'owner' and 'repo' keys
         include_commits: Whether to fetch commits
         include_issues: Whether to fetch issues
         include_prs: Whether to fetch pull requests
         include_releases: Whether to fetch releases
-        limit_per_type: Maximum number of items to fetch per type
+        limit_per_type: Maximum number of items to fetch per type per repository
         commit_since: ISO 8601 timestamp to fetch commits since (optional)
         issue_state: Issue state filter ('open', 'closed', 'all')
-        pr_state: PR state filter ('open', 'closed', 'all')
+        pr_state: Pull request state filter ('open', 'closed', 'all')
 
     Returns:
         Dictionary with ingestion statistics (total_fetched, new_documents,
-        duplicates, errors)
+        duplicates, errors). Returns zeros if no items fetched.
     """
-    logger.info(
-        f"Starting GitHub ingestion for {owner}/{repo}, "
-        f"event={ingest_event_id}, "
-        f"commits={include_commits}, issues={include_issues}, "
-        f"prs={include_prs}, releases={include_releases}"
-    )
-
-    all_items: list[tuple[str, dict[str, Any]]] = []
-
-    if include_commits:
-        commits = _fetch_commits(owner, repo, limit_per_type, commit_since)
-        for commit in commits:
-            all_items.append(("commit", commit))
-        logger.info(f"Fetched {len(commits)} commits from {owner}/{repo}")
-
-    if include_issues:
-        issues = _fetch_issues(owner, repo, limit_per_type, issue_state)
-        for issue in issues:
-            all_items.append(("issue", issue))
-        logger.info(f"Fetched {len(issues)} issues from {owner}/{repo}")
-
-    if include_prs:
-        prs = _fetch_pull_requests(owner, repo, limit_per_type, pr_state)
-        for pr in prs:
-            all_items.append(("pr", pr))
-        logger.info(f"Fetched {len(prs)} pull requests from {owner}/{repo}")
-
-    if include_releases:
-        releases = _fetch_releases(owner, repo, limit_per_type)
-        for release in releases:
-            all_items.append(("release", release))
-        logger.info(f"Fetched {len(releases)} releases from {owner}/{repo}")
-
-    if not all_items:
-        logger.warning(f"No items fetched from {owner}/{repo}")
+    if not repos:
+        logger.warning("No GitHub repositories provided")
         return {
             "total_fetched": 0,
             "new_documents": 0,
@@ -646,14 +611,58 @@ def ingest_repository(
             "errors": 0,
         }
 
-    logger.info(f"Fetched {len(all_items)} total items from {owner}/{repo}")
+    logger.info(
+        f"Starting GitHub ingestion for {len(repos)} repository/repositories, "
+        f"limit_per_type={limit_per_type} per repo, event={ingest_event_id}"
+    )
+
+    all_items: list[tuple[str, dict[str, Any], str, str]] = [] 
+
+    for repo_info in repos:
+        owner = repo_info["owner"]
+        repo = repo_info["repo"]
+
+        repo_items: list[tuple[str, dict[str, Any]]] = []
+
+        if include_commits:
+            commits = _fetch_commits(owner, repo, limit_per_type, commit_since)
+            repo_items.extend([("commit", c) for c in commits])
+            logger.info(f"Fetched {len(commits)} commits from {owner}/{repo}")
+
+        if include_issues:
+            issues = _fetch_issues(owner, repo, limit_per_type, issue_state)
+            repo_items.extend([("issue", i) for i in issues])
+            logger.info(f"Fetched {len(issues)} issues from {owner}/{repo}")
+
+        if include_prs:
+            prs = _fetch_pull_requests(owner, repo, limit_per_type, pr_state)
+            repo_items.extend([("pr", pr) for pr in prs])
+            logger.info(f"Fetched {len(prs)} pull requests from {owner}/{repo}")
+
+        if include_releases:
+            releases = _fetch_releases(owner, repo, limit_per_type)
+            repo_items.extend([("release", r) for r in releases])
+            logger.info(f"Fetched {len(releases)} releases from {owner}/{repo}")
+
+        all_items.extend([(item_type, item, owner, repo) for item_type, item in repo_items])
+
+    if not all_items:
+        logger.warning("No items fetched from any GitHub repository")
+        return {
+            "total_fetched": 0,
+            "new_documents": 0,
+            "duplicates": 0,
+            "errors": 0,
+        }
+
+    logger.info(f"Fetched {len(all_items)} total items from {len(repos)} repository/repositories")
 
     new_documents = 0
     duplicates = 0
     errors = 0
 
     try:
-        for item_type, item_data in all_items:
+        for item_type, item_data, owner, repo in all_items:
             try:
                 if item_type == "commit":
                     normalized = _normalize_commit(item_data, owner, repo)
@@ -725,7 +734,7 @@ def ingest_repository(
     }
 
     logger.info(
-        f"GitHub ingestion completed for {owner}/{repo}: "
+        f"GitHub ingestion completed for {len(repos)} repository/repositories: "
         f"{new_documents} new documents, {duplicates} duplicates, {errors} errors"
     )
 

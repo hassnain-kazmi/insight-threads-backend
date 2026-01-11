@@ -287,7 +287,7 @@ class OllamaClient:
         samples_str = "\n---\n".join(
             [
                 _truncate_text(doc, 300) for doc in document_samples[:4]
-            ]  # Reduced from 500 to 300, 5 to 4 samples
+            ]
         )
         anomaly_section = anomaly_info or "No anomalies detected."
 
