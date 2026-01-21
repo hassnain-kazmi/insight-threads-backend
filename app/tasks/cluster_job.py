@@ -237,6 +237,7 @@ def run_clustering_job(
                             if doc.raw_text and doc.raw_text.strip()
                         ]
 
+                        cluster_name = None
                         if cluster_texts:
                             try:
                                 keywords = extract_keywords(
@@ -254,11 +255,21 @@ def run_clustering_job(
                                     db.add(keyword_obj)
                                     total_keywords_created += 1
 
+                                if keywords:
+                                    top_keywords = [kw[0] for kw in keywords[:3]]
+                                    cluster_name = " • ".join(top_keywords)
+                                    if len(cluster_name) > 255:
+                                        cluster_name = cluster_name[:252] + "..."
+
                             except Exception as e:
                                 logger.warning(
                                     f"Failed to extract keywords for cluster {cluster.id}: {e}",
                                     exc_info=True,
                                 )
+
+                        if cluster_name:
+                            cluster.name = cluster_name
+                            db.flush()
 
                         total_clusters_created += 1
                         total_members_created += len(member_doc_ids)

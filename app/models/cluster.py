@@ -1,4 +1,4 @@
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
@@ -19,6 +19,7 @@ class Cluster(Base):
     document_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     avg_sentiment: Mapped[float | None] = mapped_column(Float, nullable=True)
     trending_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

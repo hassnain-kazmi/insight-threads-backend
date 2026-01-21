@@ -26,9 +26,9 @@ async def get_ingest_events_endpoint(
     ),
 ) -> IngestEventsListResponse:
     """
-    Get ingest events for the authenticated user.
+    Get all ingest events with their statuses for the authenticated user.
 
-    Returns ingest events with optional status filter.
+    Returns all ingestion events with their current status from the database.
     Only returns events owned by the authenticated user.
 
     Args:
@@ -36,10 +36,10 @@ async def get_ingest_events_endpoint(
         db: Database session
         limit: Maximum number of results (default: 100)
         offset: Number of results to skip (default: 0)
-        status: Optional filter by ingestion status
+        status: Optional filter by ingestion status (pending, processing, completed, failed)
 
     Returns:
-        IngestEventsListResponse with filtered ingest events
+        IngestEventsListResponse with all ingest events and their statuses
     """
     try:
         events, total = await get_ingest_events(

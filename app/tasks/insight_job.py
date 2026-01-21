@@ -256,13 +256,42 @@ def _generate_insight_for_cluster(
         "template": template_name,
     }
 
-    return Insight(
+    insight = Insight(
         cluster_id=cluster.id,
         insight_text=response.content.strip(),
         confidence=_calculate_confidence(response),
         llm_metadata=json.dumps(metadata),
     )
 
+    if not cluster.name:
+        try:
+            name_response = client.generate_cluster_name(
+                cluster_keywords=keywords,
+                document_samples=document_samples,
+                avg_sentiment=cluster.avg_sentiment,
+                document_count=cluster.document_count,
+            )
+            generated_name = name_response.content.strip()
+            generated_name = generated_name.strip('"\'')
+            generated_name = " ".join(generated_name.split())
+            if len(generated_name) > 255:
+                generated_name = generated_name[:252] + "..."
+            if generated_name:
+                cluster.name = generated_name
+                logger.debug(
+                    "Generated LLM-based name for cluster %s: %s",
+                    cluster.id,
+                    generated_name,
+                )
+        except Exception as e:
+            logger.warning(
+                "Failed to generate cluster name for cluster %s: %s",
+                cluster.id,
+                e,
+                exc_info=True,
+            )
+
+    return insight
 
 def _calculate_confidence(response: Any) -> float:
     """

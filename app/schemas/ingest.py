@@ -33,7 +33,7 @@ class IngestEventResponse(BaseModel):
     completed_at: datetime | None = Field(
         None, description="Ingestion completion timestamp"
     )
-    status: str = Field(..., description="Ingestion status")
+    status: str = Field(..., description="Ingestion status (pending, processing, completed, failed)")
     error_message: str | None = Field(
         None, description="Error message if ingestion failed"
     )

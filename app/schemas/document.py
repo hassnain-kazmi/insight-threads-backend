@@ -14,6 +14,7 @@ class DocumentSentimentResponse(BaseModel):
     distilbert_label: str | None = Field(None, description="DistilBERT sentiment label")
     combined_score: float | None = Field(None, description="Combined sentiment score")
 
+    model_config = {"from_attributes": True}
 
 class ClusterMembershipResponse(BaseModel):
     """Response model for cluster membership."""

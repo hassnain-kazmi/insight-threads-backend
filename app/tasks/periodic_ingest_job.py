@@ -38,7 +38,6 @@ def trigger_periodic_ingestion() -> dict[str, Any]:
             
             for user in users:
                 try:
-                    # Get all saved preferences for this user
                     preferences_result = db.execute(
                         select(UserIngestionPreference).where(
                             UserIngestionPreference.user_id == user.id
@@ -53,7 +52,6 @@ def trigger_periodic_ingestion() -> dict[str, Any]:
                         skipped_count += 1
                         continue
                     
-                    # Trigger ingestion for each saved preference
                     user_triggered = 0
                     for preference in preferences:
                         try:
