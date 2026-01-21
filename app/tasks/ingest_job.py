@@ -184,7 +184,6 @@ def process_ingestion(
                 event.status = "completed"
                 event.completed_at = datetime.now(timezone.utc)
                 
-                # Save/update user ingestion preference for periodic ingestion
                 preference_result = db.execute(
                     select(UserIngestionPreference).where(
                         UserIngestionPreference.user_id == user_uuid,
@@ -194,11 +193,8 @@ def process_ingestion(
                 preference = preference_result.scalar_one_or_none()
                 
                 if preference:
-                    # Update existing preference
                     preference.source_params = source_params
-                    # updated_at is automatically updated by onupdate=func.now()
                 else:
-                    # Create new preference
                     preference = UserIngestionPreference(
                         user_id=user_uuid,
                         source=source,

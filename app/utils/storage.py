@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from supabase import create_client
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -35,16 +36,17 @@ _supabase_client: Optional[Any] = None
 
 if _use_supabase:
     try:
-        from supabase import create_client  # type: ignore
-
         _supabase_client = create_client(
             settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY
         )
         logger.info(
             f"Initialized Supabase Storage client with bucket: {settings.SUPABASE_STORAGE_BUCKET}"
         )
-    except ImportError:
-        logger.warning("supabase-py not installed, falling back to local storage")
+    except Exception as e:
+        logger.warning(
+            "Failed to initialize Supabase client, falling back to local storage: %s",
+            e,
+        )
         _use_supabase = False
         _supabase_client = None
 else:

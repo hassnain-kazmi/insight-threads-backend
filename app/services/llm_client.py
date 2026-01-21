@@ -309,6 +309,47 @@ class OllamaClient:
             max_tokens=256,
         )
 
+    def generate_cluster_name(
+        self,
+        cluster_keywords: list[str],
+        document_samples: list[str],
+        avg_sentiment: float | None = None,
+        document_count: int | None = None,
+    ) -> LLMResponse:
+        """
+        Generate a concise name for a cluster (2-4 words).
+
+        Args:
+            cluster_keywords: Top keywords for the cluster
+            document_samples: Sample document texts from the cluster
+            avg_sentiment: Average sentiment score (-1 to 1)
+            document_count: Total documents in cluster
+
+        Returns:
+            LLMResponse with generated cluster name
+        """
+        sentiment_label = _sentiment_to_label(avg_sentiment)
+        keywords_str = ", ".join(cluster_keywords[:10])
+        samples_str = "\n---\n".join(
+            [
+                _truncate_text(doc, 200) for doc in document_samples[:3]
+            ]
+        )
+
+        prompt = format_prompt(
+            "cluster_name_template",
+            keywords=keywords_str,
+            document_samples=samples_str,
+            sentiment_label=sentiment_label,
+            document_count=document_count or "Unknown",
+        )
+
+        return self.generate(
+            prompt=prompt,
+            temperature=0.3,
+            max_tokens=20, 
+        )
+
     def health_check(self) -> bool:
         """
         Check if Ollama service is available.
