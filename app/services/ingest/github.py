@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import Document
 from app.services.ingest.common import check_duplicate
-from app.utils.storage import upload_snapshot, sanitize_filename
+from app.utils.storage import sanitize_filename, upload_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -616,7 +616,7 @@ def ingest_repositories(
         f"limit_per_type={limit_per_type} per repo, event={ingest_event_id}"
     )
 
-    all_items: list[tuple[str, dict[str, Any], str, str]] = [] 
+    all_items: list[tuple[str, dict[str, Any], str, str]] = []
 
     for repo_info in repos:
         owner = repo_info["owner"]
@@ -644,7 +644,9 @@ def ingest_repositories(
             repo_items.extend([("release", r) for r in releases])
             logger.info(f"Fetched {len(releases)} releases from {owner}/{repo}")
 
-        all_items.extend([(item_type, item, owner, repo) for item_type, item in repo_items])
+        all_items.extend(
+            [(item_type, item, owner, repo) for item_type, item in repo_items]
+        )
 
     if not all_items:
         logger.warning("No items fetched from any GitHub repository")
@@ -655,7 +657,9 @@ def ingest_repositories(
             "errors": 0,
         }
 
-    logger.info(f"Fetched {len(all_items)} total items from {len(repos)} repository/repositories")
+    logger.info(
+        f"Fetched {len(all_items)} total items from {len(repos)} repository/repositories"
+    )
 
     new_documents = 0
     duplicates = 0

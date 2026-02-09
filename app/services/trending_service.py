@@ -20,7 +20,7 @@ TRENDING_SCORE_WEIGHTS = {
     "anomaly": 0.2,
 }
 
-DEFAULT_LOOKBACK_DAYS = 14
+DEFAULT_LOOKBACK_DAYS = 30
 
 
 def calculate_trending_score(
@@ -40,7 +40,7 @@ def calculate_trending_score(
     Args:
         cluster_id: UUID of the cluster
         db: Database session
-        lookback_days: Number of days to look back for calculations (default: 14)
+        lookback_days: Number of days to look back for calculations (default: 30)
 
     Returns:
         Combined trending score (0.0 to 1.0, higher = more trending)
@@ -100,9 +100,7 @@ def _calculate_velocity(timeseries_data: list[TimeseriesSummary]) -> float:
         return (
             min(1.0, last_count / ZERO_START_GROWTH_DIVISOR) if last_count > 0 else 0.0
         )
-
     growth_rate = (last_count - first_count) / first_count
-
     return min(1.0, max(0.0, (growth_rate + 1.0) / GROWTH_RATE_NORMALIZATION_FACTOR))
 
 
@@ -111,6 +109,7 @@ def _calculate_momentum(timeseries_data: list[TimeseriesSummary]) -> float:
     Calculate momentum score from timeseries momentum values.
 
     Returns normalized score (0-1) based on average momentum.
+    Returns 0 when there are no momentum values.
     """
     if not timeseries_data:
         return 0.0
@@ -136,6 +135,7 @@ def _calculate_sentiment_change(timeseries_data: list[TimeseriesSummary]) -> flo
 
     Returns normalized score (0-1) based on sentiment shift.
     Positive sentiment change = higher score.
+    Returns 0 when first or last sentiment is missing.
     """
     if len(timeseries_data) < 2:
         return 0.0
@@ -157,8 +157,8 @@ def _calculate_anomaly_weight(anomalies: list[Anomaly]) -> float:
     """
     Calculate anomaly weight score with recency weighting.
 
-    Applies additional recency weighting to anomalies within the last
-    ANOMALY_RECENCY_DAYS, giving more weight to very recent anomalies.
+    Uses all anomalies in the list (already filtered by lookback in caller);
+    more recent anomalies get higher weight via 1 / (1 + days_ago).
 
     Args:
         anomalies: List of anomalies (already filtered by lookback_days in main function)
@@ -169,16 +169,10 @@ def _calculate_anomaly_weight(anomalies: list[Anomaly]) -> float:
     if not anomalies:
         return 0.0
 
-    recent_cutoff = date.today() - timedelta(days=ANOMALY_RECENCY_DAYS)
-    recent_anomalies = [a for a in anomalies if a.anomaly_date >= recent_cutoff]
-
-    if not recent_anomalies:
-        return 0.0
-
     total_weight = 0.0
     total_score = 0.0
 
-    for anomaly in recent_anomalies:
+    for anomaly in anomalies:
         days_ago = (date.today() - anomaly.anomaly_date).days
         recency_weight = 1.0 / (1.0 + days_ago)
         weighted_score = anomaly.score * recency_weight

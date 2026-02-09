@@ -43,7 +43,7 @@ async def get_current_user(
             options={
                 "verify_signature": True,
                 "verify_exp": True,
-                "verify_aud": False, 
+                "verify_aud": False,
             },
         )
 

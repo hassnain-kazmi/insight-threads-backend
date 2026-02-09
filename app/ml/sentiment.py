@@ -1,8 +1,8 @@
 import logging
 from typing import Optional, Tuple
 
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 logger = logging.getLogger(__name__)
 

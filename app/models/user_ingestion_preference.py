@@ -1,4 +1,4 @@
-from sqlalchemy import DateTime, ForeignKey, JSON, String, UniqueConstraint, func
+from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,6 +26,7 @@ class UserIngestionPreference(Base):
     user = relationship("User", back_populates="ingestion_preferences")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "source", name="uq_user_ingestion_preference_user_source"),
+        UniqueConstraint(
+            "user_id", "source", name="uq_user_ingestion_preference_user_source"
+        ),
     )
-

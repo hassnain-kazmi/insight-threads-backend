@@ -56,6 +56,27 @@ def _prepare_timeseries_features(
     return features, dates
 
 
+def _normalize_anomaly_scores(anomalies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Min-max normalize anomaly scores to [0, 1] for storage.
+
+    Raw scores from IForest and LOF are correct for ranking (higher = more anomalous)
+    but use different scales (IForest ~0.05–0.2, LOF unbounded). Normalizing puts
+    both on a single 0–1 scale so the score column is comparable and usable downstream.
+    """
+    if not anomalies:
+        return anomalies
+    scores = [a["score"] for a in anomalies]
+    lo, hi = min(scores), max(scores)
+    if hi <= lo:
+        for a in anomalies:
+            a["score"] = 1.0
+        return anomalies
+    for a in anomalies:
+        a["score"] = float((a["score"] - lo) / (hi - lo))
+    return anomalies
+
+
 def detect_volume_anomalies(
     timeseries_data: List[Dict[str, Any]],
     contamination: float = 0.1,
@@ -228,6 +249,9 @@ def detect_anomalies_for_cluster(
     sentiment_anomalies = detect_sentiment_anomalies(
         timeseries_data, contamination=contamination
     )
+
+    volume_anomalies = _normalize_anomaly_scores(volume_anomalies)
+    sentiment_anomalies = _normalize_anomaly_scores(sentiment_anomalies)
 
     all_anomalies = volume_anomalies + sentiment_anomalies
 

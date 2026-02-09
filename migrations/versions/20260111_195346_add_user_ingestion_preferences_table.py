@@ -34,11 +34,12 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.UniqueConstraint("user_id", "source", name="uq_user_ingestion_preference_user_source"),
+        sa.UniqueConstraint(
+            "user_id", "source", name="uq_user_ingestion_preference_user_source"
+        ),
     )
 
 
 def downgrade() -> None:
     """Drop user_ingestion_preferences table."""
     op.drop_table("user_ingestion_preferences")
-

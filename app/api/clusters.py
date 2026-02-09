@@ -1,7 +1,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
@@ -23,8 +23,8 @@ router = APIRouter(prefix="/clusters", tags=["clusters"])
 async def get_clusters_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(100, ge=1, le=500, description="Maximum number of clusters"),
+    offset: int = Query(0, ge=0, description="Number of clusters to skip"),
 ) -> ClustersListResponse:
     """
     Get clusters for the authenticated user, ordered by trending score (descending).

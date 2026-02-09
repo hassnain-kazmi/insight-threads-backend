@@ -28,6 +28,7 @@ class GlobalConfig(BaseSettings):
 
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
+    LOG_DIR: Optional[str] = None
 
     REDIS_HOST: str
     REDIS_PORT: str

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Document
 from app.services.ingest.common import check_duplicate
-from app.utils.storage import upload_snapshot, sanitize_filename
+from app.utils.storage import sanitize_filename, upload_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +236,9 @@ def ingest_posts(
             "errors": 0,
         }
 
-    logger.info(f"Fetched {len(all_posts)} total posts from {len(endpoints_list)} endpoint(s)")
+    logger.info(
+        f"Fetched {len(all_posts)} total posts from {len(endpoints_list)} endpoint(s)"
+    )
 
     new_documents = 0
     duplicates = 0

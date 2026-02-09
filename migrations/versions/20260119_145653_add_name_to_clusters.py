@@ -10,11 +10,8 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "clusters", sa.Column("name", sa.String(length=255), nullable=True)
-    )
+    op.add_column("clusters", sa.Column("name", sa.String(length=255), nullable=True))
 
 
 def downgrade() -> None:
     op.drop_column("clusters", "name")
-

@@ -272,7 +272,7 @@ def _generate_insight_for_cluster(
                 document_count=cluster.document_count,
             )
             generated_name = name_response.content.strip()
-            generated_name = generated_name.strip('"\'')
+            generated_name = generated_name.strip("\"'")
             generated_name = " ".join(generated_name.split())
             if len(generated_name) > 255:
                 generated_name = generated_name[:252] + "..."
@@ -292,6 +292,7 @@ def _generate_insight_for_cluster(
             )
 
     return insight
+
 
 def _calculate_confidence(response: Any) -> float:
     """

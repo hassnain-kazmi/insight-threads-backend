@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, status
@@ -18,11 +19,15 @@ from app.db import check_db_connection, close_db
 from app.logging_config import configure_logging
 
 configure_logging()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
+    db_ok = await check_db_connection()
+    if not db_ok:
+        logger.warning("Database connection check failed at startup.")
     yield
     await close_db()
 

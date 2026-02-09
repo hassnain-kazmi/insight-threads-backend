@@ -1,4 +1,4 @@
-from sqlalchemy import Date, DateTime, Float, ForeignKey, JSON, String, func
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

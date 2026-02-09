@@ -1,10 +1,12 @@
 import logging
 from typing import Any
 
-import numpy as np
 import hdbscan
+import numpy as np
 from keybert import KeyBERT
 from sklearn.feature_extraction.text import TfidfVectorizer
+
+from app.ml.embeddings import DEFAULT_EMBEDDING_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,12 @@ def compute_hdbscan_clusters(
         if len(embeddings_array.shape) != 2:
             raise ValueError(
                 f"Expected 2D array of embeddings, got shape {embeddings_array.shape}"
+            )
+
+        if embeddings_array.shape[1] != DEFAULT_EMBEDDING_DIM:
+            raise ValueError(
+                f"Expected embeddings of dimension {DEFAULT_EMBEDDING_DIM}, "
+                f"got {embeddings_array.shape[1]}"
             )
 
         logger.info(

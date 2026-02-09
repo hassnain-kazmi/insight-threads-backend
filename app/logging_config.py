@@ -6,8 +6,12 @@ from app.config import settings
 
 def configure_logging() -> None:
     """Configure logging with console and file handlers."""
-    logs_dir = Path(__file__).parent.parent / "logs"
-    logs_dir.mkdir(exist_ok=True)
+    logs_dir = (
+        Path(settings.LOG_DIR)
+        if settings.LOG_DIR
+        else Path(__file__).parent.parent / "logs"
+    )
+    logs_dir.mkdir(parents=True, exist_ok=True)
 
     dictConfig(
         {

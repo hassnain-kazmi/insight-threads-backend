@@ -16,6 +16,7 @@ class DocumentSentimentResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class ClusterMembershipResponse(BaseModel):
     """Response model for cluster membership."""
 

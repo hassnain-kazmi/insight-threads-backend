@@ -248,7 +248,7 @@ class OllamaClient:
             content=response.get("response", ""),
             model=response.get("model", payload["model"]),
             total_duration_ms=(
-                response.get("total_duration", 0) // 1_000_000
+                response.get("total_duration", 0)
                 if response.get("total_duration")
                 else None
             ),
@@ -285,9 +285,7 @@ class OllamaClient:
         sentiment_label = _sentiment_to_label(avg_sentiment)
         keywords_str = ", ".join(cluster_keywords[:10])
         samples_str = "\n---\n".join(
-            [
-                _truncate_text(doc, 300) for doc in document_samples[:4]
-            ]
+            [_truncate_text(doc, 300) for doc in document_samples[:4]]
         )
         anomaly_section = anomaly_info or "No anomalies detected."
 
@@ -331,9 +329,7 @@ class OllamaClient:
         sentiment_label = _sentiment_to_label(avg_sentiment)
         keywords_str = ", ".join(cluster_keywords[:10])
         samples_str = "\n---\n".join(
-            [
-                _truncate_text(doc, 200) for doc in document_samples[:3]
-            ]
+            [_truncate_text(doc, 200) for doc in document_samples[:3]]
         )
 
         prompt = format_prompt(
@@ -347,7 +343,7 @@ class OllamaClient:
         return self.generate(
             prompt=prompt,
             temperature=0.3,
-            max_tokens=20, 
+            max_tokens=20,
         )
 
     def health_check(self) -> bool:

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Document
 from app.services.ingest.common import check_duplicate
-from app.utils.storage import upload_snapshot, sanitize_filename
+from app.utils.storage import sanitize_filename, upload_snapshot
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,7 +9,7 @@ from app.models import Document
 logger = logging.getLogger(__name__)
 
 
-def check_duplicate(db: Session, url: str, user_id: UUID | None) -> Optional[Document]:
+def check_duplicate(db: Session, url: str, user_id: UUID | None) -> Document | None:
     """
     Check if a document with the same URL already exists for the given user.
 

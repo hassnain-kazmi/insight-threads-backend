@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -7,8 +8,8 @@ from celery import Task, chord, group
 from sqlalchemy import select
 
 from app.celery_app import celery_app
-
 from app.db import get_sync_db
+from app.ml.embeddings import DEFAULT_MODEL_NAME
 from app.models import (
     Document,
     DocumentEmbedding,
@@ -16,18 +17,26 @@ from app.models import (
     IngestEvent,
     UserIngestionPreference,
 )
-from app.ml.embeddings import DEFAULT_MODEL_NAME
-from app.services.ingest.rss import DEFAULT_LIMIT as RSS_DEFAULT_LIMIT, ingest_feeds
-from app.services.ingest.hackernews import (
-    DEFAULT_LIMIT as HN_DEFAULT_LIMIT,
-    ingest_posts,
-)
 from app.services.ingest.github import (
     DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT,
+)
+from app.services.ingest.github import (
     ingest_repositories,
 )
+from app.services.ingest.hackernews import (
+    DEFAULT_LIMIT as HN_DEFAULT_LIMIT,
+)
+from app.services.ingest.hackernews import (
+    ingest_posts,
+)
+from app.services.ingest.params import normalize_github_repos_params
+from app.services.ingest.rss import DEFAULT_LIMIT as RSS_DEFAULT_LIMIT
+from app.services.ingest.rss import ingest_feeds
 
 logger = logging.getLogger(__name__)
+
+_EVENT_LOOKUP_MAX_RETRIES = 5
+_EVENT_LOOKUP_RETRY_DELAY_SECONDS = 0.2
 
 
 @celery_app.task(bind=True, name="app.tasks.ingest_job.process_ingestion")
@@ -61,17 +70,37 @@ def process_ingestion(
 
     try:
         with get_sync_db() as db:
-            result = db.execute(
-                select(IngestEvent).where(
-                    IngestEvent.id == ingest_uuid,
-                    IngestEvent.user_id == user_uuid,
+            event = None
+            for attempt in range(_EVENT_LOOKUP_MAX_RETRIES):
+                result = db.execute(
+                    select(IngestEvent).where(
+                        IngestEvent.id == ingest_uuid,
+                        IngestEvent.user_id == user_uuid,
+                    )
                 )
-            )
-            event = result.scalar_one_or_none()
+                event = result.scalar_one_or_none()
 
-            if not event:
+                if event is not None:
+                    break
+
+                if attempt < _EVENT_LOOKUP_MAX_RETRIES - 1:
+                    logger.debug(
+                        "Ingest event %s not visible yet for user %s (attempt %d/%d); "
+                        "retrying after %.2fs",
+                        ingest_uuid,
+                        user_uuid,
+                        attempt + 1,
+                        _EVENT_LOOKUP_MAX_RETRIES,
+                        _EVENT_LOOKUP_RETRY_DELAY_SECONDS,
+                    )
+                    time.sleep(_EVENT_LOOKUP_RETRY_DELAY_SECONDS)
+
+            if event is None:
                 logger.error(
-                    f"Ingest event {ingest_uuid} not found for user {user_uuid}"
+                    "Ingest event %s not found or not visible after %d attempts for user %s",
+                    ingest_uuid,
+                    _EVENT_LOOKUP_MAX_RETRIES,
+                    user_uuid,
                 )
                 raise ValueError(
                     f"Ingest event {ingest_uuid} not found or access denied"
@@ -97,15 +126,17 @@ def process_ingestion(
                         limit=limit,
                     )
                 elif source == "hackernews":
-                    endpoints = source_params.get("endpoints") or source_params.get("endpoint")
+                    endpoints = source_params.get("endpoints") or source_params.get(
+                        "endpoint"
+                    )
                     if endpoints is None:
                         endpoints = ["topstories"]
                     elif isinstance(endpoints, str):
                         endpoints = [endpoints]
-                    
-                    limit = source_params.get("limit_per_endpoint") or source_params.get(
-                        "limit", HN_DEFAULT_LIMIT
-                    )
+
+                    limit = source_params.get(
+                        "limit_per_endpoint"
+                    ) or source_params.get("limit", HN_DEFAULT_LIMIT)
 
                     stats = ingest_posts(
                         db=db,
@@ -115,42 +146,7 @@ def process_ingestion(
                         limit=limit,
                     )
                 elif source == "github":
-                    repos = source_params.get("repos")
-                    
-                    logger.info(f"GitHub repos parameter: {repos}, type: {type(repos)}")
-                    
-                    if repos is not None:
-                        if not isinstance(repos, list):
-                            try:
-                                repos = list(repos) if hasattr(repos, '__iter__') and not isinstance(repos, str) else None
-                                logger.info(f"Converted repos to list: {repos}")
-                            except (TypeError, ValueError) as e:
-                                logger.warning(f"Could not convert repos to list: {e}, repos={repos}")
-                                repos = None
-                    
-                    if repos is None:
-                        owner = source_params.get("owner") or ""
-                        repo = source_params.get("repo") or ""
-                        if not owner or not owner.strip() or not repo or not repo.strip():
-                            raise ValueError(
-                                "GitHub ingestion requires 'owner' and 'repo' parameters "
-                                "(both non-empty), or 'repos' array"
-                            )
-                        repos = [{"owner": owner.strip(), "repo": repo.strip()}]
-                    elif isinstance(repos, list):
-                        if not repos:
-                            raise ValueError("GitHub ingestion 'repos' array cannot be empty")
-                        for repo_item in repos:
-                            if not isinstance(repo_item, dict):
-                                raise ValueError(
-                                    "Each item in 'repos' array must be an object with 'owner' and 'repo'"
-                                )
-                            if "owner" not in repo_item or "repo" not in repo_item:
-                                raise ValueError(
-                                    "Each item in 'repos' array must have 'owner' and 'repo' fields"
-                                )
-                    else:
-                        raise ValueError("GitHub ingestion 'repos' must be an array")
+                    repos = normalize_github_repos_params(source_params)
 
                     include_commits = source_params.get("include_commits", True)
                     include_issues = source_params.get("include_issues", True)
@@ -180,29 +176,39 @@ def process_ingestion(
                 else:
                     raise ValueError(f"Unsupported source type: {source}")
 
-                db.refresh(event)
                 event.status = "completed"
                 event.completed_at = datetime.now(timezone.utc)
-                
-                preference_result = db.execute(
-                    select(UserIngestionPreference).where(
-                        UserIngestionPreference.user_id == user_uuid,
-                        UserIngestionPreference.source == source,
-                    )
-                )
-                preference = preference_result.scalar_one_or_none()
-                
-                if preference:
-                    preference.source_params = source_params
-                else:
-                    preference = UserIngestionPreference(
-                        user_id=user_uuid,
-                        source=source,
-                        source_params=source_params,
-                    )
-                    db.add(preference)
-                
                 db.commit()
+
+                try:
+                    preference_result = db.execute(
+                        select(UserIngestionPreference).where(
+                            UserIngestionPreference.user_id == user_uuid,
+                            UserIngestionPreference.source == source,
+                        )
+                    )
+                    preference = preference_result.scalar_one_or_none()
+
+                    if preference:
+                        preference.source_params = source_params
+                    else:
+                        preference = UserIngestionPreference(
+                            user_id=user_uuid,
+                            source=source,
+                            source_params=source_params,
+                        )
+                        db.add(preference)
+
+                    db.commit()
+                except Exception as pref_error:
+                    db.rollback()
+                    logger.error(
+                        "Failed to persist ingestion preferences for user %s, source %s: %s",
+                        user_uuid,
+                        source,
+                        pref_error,
+                        exc_info=True,
+                    )
 
                 logger.info(
                     f"Ingestion event {ingest_uuid} completed: "
@@ -291,17 +297,10 @@ def process_ingestion(
                             )
                         except Exception as chord_error:
                             logger.error(
-                                f"Failed to enqueue chord pipeline: {chord_error}",
+                                "Failed to enqueue chord pipeline (not enqueueing tasks individually to avoid double-enqueue): %s",
+                                chord_error,
                                 exc_info=True,
                             )
-                            for task in all_processing_tasks:
-                                try:
-                                    task.apply_async()
-                                except Exception as task_error:
-                                    logger.error(
-                                        f"Failed to enqueue fallback task: {task_error}",
-                                        exc_info=True,
-                                    )
 
                 return {
                     "status": "completed",
@@ -325,7 +324,10 @@ def process_ingestion(
         try:
             with get_sync_db() as db:
                 result = db.execute(
-                    select(IngestEvent).where(IngestEvent.id == ingest_uuid)
+                    select(IngestEvent).where(
+                        IngestEvent.id == ingest_uuid,
+                        IngestEvent.user_id == user_uuid,
+                    )
                 )
                 event = result.scalar_one_or_none()
                 if event:

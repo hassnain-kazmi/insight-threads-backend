@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from supabase import create_client
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)

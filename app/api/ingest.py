@@ -1,6 +1,9 @@
 import logging
 
+from celery.exceptions import OperationalError as CeleryOperationalError
 from fastapi import APIRouter, Depends, HTTPException, status
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
@@ -56,6 +59,24 @@ async def trigger_ingestion(
             status=ingest_event.status,
         )
 
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Ingestion validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except (
+        CeleryOperationalError,
+        RedisConnectionError,
+        RedisTimeoutError,
+    ) as e:
+        logger.error(f"Task enqueue failed (broker/backend): {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to enqueue ingestion task. Service may be unavailable.",
+        )
     except Exception as e:
         error_msg = str(e).lower()
         if (

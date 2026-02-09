@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Document, IngestEvent
+from app.models import IngestEvent
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ async def get_ingest_events(
     result = await db.execute(data_query)
     events = result.scalars().all()
 
-    logger.info(
+    logger.debug(
         f"Retrieved {len(events)} ingest events for user {user_id} "
         f"(offset: {offset}, limit: {limit})"
     )
@@ -92,36 +92,3 @@ async def get_ingest_event(
         )
 
     return event
-
-
-async def get_ingest_event_with_document_count(
-    event_id: UUID,
-    user_id: UUID,
-    db: AsyncSession,
-) -> tuple[IngestEvent | None, int]:
-    """
-    Get ingest event by ID with document count.
-
-    Returns ingest event details and the number of documents created.
-    Only returns events owned by the specified user.
-
-    Args:
-        event_id: Ingest event unique identifier
-        user_id: User unique identifier (for authorization)
-        db: Database session
-
-    Returns:
-        Tuple of (IngestEvent object or None, document_count)
-    """
-    event = await get_ingest_event(event_id, user_id, db)
-    
-    if not event:
-        return None, 0
-    
-    count_query = select(func.count(Document.id)).where(
-        Document.ingest_event_id == event_id
-    )
-    count_result = await db.execute(count_query)
-    document_count = count_result.scalar_one() or 0
-    
-    return event, document_count

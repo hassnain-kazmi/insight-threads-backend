@@ -1,16 +1,34 @@
 from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+IngestionSource = Literal["rss", "hackernews", "github"]
+IngestEventStatusFilter = Literal["pending", "processing", "completed", "failed"]
+
+SOURCE_PARAMS_MAX_KEYS = 50
 
 
 class TriggerIngestionRequest(BaseModel):
     """Request model for triggering ingestion."""
 
-    source: str = Field(..., description="Data source type (e.g., 'rss')")
+    source: IngestionSource = Field(
+        ...,
+        description="Data source type: rss, hackernews, or github",
+    )
     source_params: dict = Field(
         default_factory=dict, description="Source-specific parameters"
     )
+
+    @field_validator("source_params")
+    @classmethod
+    def source_params_bounded(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if len(v) > SOURCE_PARAMS_MAX_KEYS:
+            raise ValueError(
+                f"source_params may have at most {SOURCE_PARAMS_MAX_KEYS} keys"
+            )
+        return v
 
 
 class TriggerIngestionResponse(BaseModel):
@@ -33,7 +51,9 @@ class IngestEventResponse(BaseModel):
     completed_at: datetime | None = Field(
         None, description="Ingestion completion timestamp"
     )
-    status: str = Field(..., description="Ingestion status (pending, processing, completed, failed)")
+    status: str = Field(
+        ..., description="Ingestion status (pending, processing, completed, failed)"
+    )
     error_message: str | None = Field(
         None, description="Error message if ingestion failed"
     )

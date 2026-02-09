@@ -5,9 +5,10 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-sys.path.append(str(Path(__file__).parent.parent))
-
+from app.config import get_config
 from app.models import Base
+
+sys.path.append(str(Path(__file__).parent.parent))
 
 config = context.config
 if config.config_file_name:
@@ -18,8 +19,6 @@ target_metadata = Base.metadata
 
 def get_url() -> str:
     """Get database URL from config system."""
-    from app.config import get_config
-
     app_config = get_config()
     return app_config.database_url_sync
 

@@ -1,7 +1,7 @@
 import logging
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -41,7 +41,9 @@ async def get_documents(
         Tuple of (list of documents, total count)
     """
     query = select(Document).where(Document.user_id == user_id)
-    count_query = select(func.count(Document.id)).where(Document.user_id == user_id)
+    count_query = select(func.count(distinct(Document.id))).where(
+        Document.user_id == user_id
+    )
 
     if processed is not None:
         query = query.where(Document.processed == processed)
@@ -87,6 +89,8 @@ async def get_documents(
                 DocumentSentiment.combined_score <= sentiment_max
             )
 
+        query = query.distinct()
+
     count_result = await db.execute(count_query)
     total = count_result.scalar_one() or 0
 
@@ -101,39 +105,6 @@ async def get_documents(
     )
 
     return documents, total
-
-
-async def get_document(
-    document_id: UUID,
-    user_id: UUID,
-    db: AsyncSession,
-) -> Document | None:
-    """
-    Get document by ID.
-
-    Returns document details. Only returns documents owned by the specified user.
-
-    Args:
-        document_id: Document unique identifier
-        user_id: User unique identifier (for authorization)
-        db: Database session
-
-    Returns:
-        Document object, or None if not found or not owned by user
-    """
-    query = select(Document).where(
-        Document.id == document_id, Document.user_id == user_id
-    )
-
-    result = await db.execute(query)
-    document = result.scalar_one_or_none()
-
-    if document:
-        logger.info(f"Retrieved document {document_id} for user {user_id}")
-    else:
-        logger.debug(f"Document {document_id} not found or not owned by user {user_id}")
-
-    return document
 
 
 async def get_document_detail(

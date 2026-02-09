@@ -12,7 +12,9 @@ class ClusterResponse(BaseModel):
 
     id: UUID = Field(..., description="Cluster unique identifier")
     user_id: UUID = Field(..., description="User unique identifier")
-    name: str | None = Field(None, description="Cluster name (keyword-based or LLM-generated)")
+    name: str | None = Field(
+        None, description="Cluster name (keyword-based or LLM-generated)"
+    )
     document_count: int = Field(..., description="Number of documents in cluster")
     avg_sentiment: float | None = Field(None, description="Average sentiment score")
     trending_score: float | None = Field(
@@ -68,7 +70,9 @@ class ClusterDetailResponse(BaseModel):
 
     id: UUID = Field(..., description="Cluster unique identifier")
     user_id: UUID = Field(..., description="User unique identifier")
-    name: str | None = Field(None, description="Cluster name (keyword-based or LLM-generated)")
+    name: str | None = Field(
+        None, description="Cluster name (keyword-based or LLM-generated)"
+    )
     document_count: int = Field(..., description="Number of documents in cluster")
     avg_sentiment: float | None = Field(None, description="Average sentiment score")
     trending_score: float | None = Field(

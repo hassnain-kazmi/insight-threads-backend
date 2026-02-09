@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.models import User
-from app.schemas.ingest import IngestEventResponse, IngestEventsListResponse
+from app.schemas.ingest import (
+    IngestEventResponse,
+    IngestEventsListResponse,
+    IngestEventStatusFilter,
+)
 from app.services.ingest_event_service import get_ingest_event, get_ingest_events
 from app.utils.auth import get_current_user
 
@@ -19,10 +23,12 @@ router = APIRouter(prefix="/ingest/events", tags=["ingest"])
 async def get_ingest_events_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    limit: int = 100,
-    offset: int = 0,
-    event_status: str | None = Query(
-        None, description="Filter by ingestion status", alias="status"
+    limit: int = Query(100, ge=1, le=500, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    event_status: IngestEventStatusFilter | None = Query(
+        None,
+        description="Filter by status: pending, processing, completed, or failed",
+        alias="status",
     ),
 ) -> IngestEventsListResponse:
     """
