@@ -20,7 +20,7 @@ async def get_insights_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     cluster_id: str | None = Query(None, description="Filter by cluster ID"),
-    limit: int = Query(100, ge=1, le=500, description="Maximum number of results"),
+    limit: int = Query(500, ge=1, le=2000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ) -> InsightsListResponse:
     """
@@ -33,7 +33,7 @@ async def get_insights_endpoint(
         current_user: Authenticated user from JWT token
         db: Database session
         cluster_id: Optional cluster ID filter (UUID)
-        limit: Maximum number of results (default: 100)
+        limit: Maximum number of results (default: 500)
         offset: Number of results to skip (default: 0)
 
     Returns:

@@ -38,7 +38,9 @@ def compute_timeseries_summaries(
 
     try:
         with get_sync_db() as db:
-            user_uuid: UUID | None = UUID(user_id) if user_id else None
+            user_uuid: UUID | None = (
+                UUID(user_id) if (user_id and str(user_id).strip()) else None
+            )
 
             query = sa.select(Cluster.id)
             if user_uuid:

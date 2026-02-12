@@ -133,13 +133,12 @@ class OllamaClient:
         for attempt in range(1, self.max_retries + 1):
             try:
                 logger.debug(
-                    "Ollama request attempt %d/%d to %s",
+                    "Ollama request attempt %d/%d to %s (timeout=%ds)",
                     attempt,
                     self.max_retries,
                     url,
+                    self.timeout,
                 )
-
-                logger.info("Sending request to Ollama (timeout=%ds)...", self.timeout)
 
                 response = requests.post(
                     url,
@@ -148,8 +147,9 @@ class OllamaClient:
                     headers={"Content-Type": "application/json"},
                 )
 
-                logger.info(
-                    "Received response from Ollama (status=%d)", response.status_code
+                logger.debug(
+                    "Received response from Ollama (status=%d)",
+                    response.status_code,
                 )
 
                 if response.status_code != 200:
@@ -234,7 +234,7 @@ class OllamaClient:
         if max_tokens:
             payload["options"]["num_predict"] = max_tokens
 
-        logger.info(
+        logger.debug(
             "Generating with model=%s, prompt_len=%d, context_size=%d, max_tokens=%s",
             payload["model"],
             len(prompt),

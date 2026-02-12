@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.ml.embeddings import DEFAULT_MODEL_NAME
 from app.models import User
 from app.schemas.umap import ClusterUMAPResponse, DocumentUMAPResponse
 from app.services.umap_service import (
@@ -13,6 +12,7 @@ from app.services.umap_service import (
     get_user_umap_projections,
 )
 from app.utils.auth import get_current_user
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ async def get_cluster_umap_endpoint(
     cluster_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    model_name: str = Query(DEFAULT_MODEL_NAME, description="UMAP model name"),
+    model_name: str = Query(settings.OLLAMA_MODEL, description="UMAP model name"),
 ) -> ClusterUMAPResponse:
     """
     Get UMAP projections for all documents in a cluster.
@@ -106,7 +106,7 @@ async def get_cluster_umap_endpoint(
 async def get_user_umap_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    model_name: str = Query(DEFAULT_MODEL_NAME, description="UMAP model name"),
+    model_name: str = Query(settings.OLLAMA_MODEL, description="UMAP model name"),
     limit: int = Query(
         1000, description="Maximum number of projections to return", ge=1, le=5000
     ),

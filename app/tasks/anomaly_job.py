@@ -47,7 +47,9 @@ def detect_cluster_anomalies(
 
     try:
         with get_sync_db() as db:
-            user_uuid: UUID | None = UUID(user_id) if user_id else None
+            user_uuid: UUID | None = (
+                UUID(user_id) if (user_id and str(user_id).strip()) else None
+            )
 
             query = sa.select(Cluster.id)
             if user_uuid:
@@ -141,7 +143,7 @@ def detect_cluster_anomalies(
             )
 
             insight_job_enqueued = False
-            if len(cluster_ids) > 0:
+            if cluster_ids:
                 try:
                     celery_app.send_task(
                         "app.tasks.insight_job.generate_cluster_insights",

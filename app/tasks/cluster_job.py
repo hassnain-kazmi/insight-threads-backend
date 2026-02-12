@@ -15,7 +15,8 @@ from app.ml.cluster import (
     compute_hdbscan_clusters,
     extract_keywords,
 )
-from app.ml.embeddings import DEFAULT_MODEL_NAME
+from app.ml.embeddings import DEFAULT_EMBEDDING_DIM, DEFAULT_MODEL_NAME
+from app.services.llm_client import OllamaClient
 from app.models import (
     Cluster,
     ClusterMember,
@@ -27,7 +28,7 @@ from app.models import (
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_DIM = 384
+EMBEDDING_DIM = DEFAULT_EMBEDDING_DIM
 EXISTING_CLUSTER_SIMILARITY_THRESHOLD = 0.85
 
 
@@ -181,7 +182,7 @@ def run_clustering_job(
                         best_cluster_id = None
                         best_sim = -1.0
                         for cluster_id, centroid, count in existing_centroids:
-                            if centroid is None or len(centroid) != 384:
+                            if centroid is None or len(centroid) != EMBEDDING_DIM:
                                 continue
                             sim = float(
                                 cosine_similarity(
@@ -205,7 +206,11 @@ def run_clustering_job(
                             )
                             db.add(member)
                             n = cluster.document_count + 1
-                            old_c = cluster.centroid_384 or vec
+                            old_c = (
+                                vec
+                                if cluster.centroid_384 is None
+                                else cluster.centroid_384
+                            )
                             new_centroid = [
                                 (old_c[i] * (n - 1) + vec[i]) / n
                                 for i in range(EMBEDDING_DIM)
@@ -343,9 +348,32 @@ def run_clustering_job(
 
                                 if keywords:
                                     top_keywords = [kw[0] for kw in keywords[:3]]
-                                    cluster_name = " • ".join(top_keywords)
-                                    if len(cluster_name) > 255:
-                                        cluster_name = cluster_name[:252] + "..."
+                                    try:
+                                        client = OllamaClient()
+                                        name_resp = client.generate_cluster_name(
+                                            cluster_keywords=[kw[0] for kw in keywords],
+                                            document_samples=cluster_texts[:3],
+                                            avg_sentiment=avg_sentiment,
+                                            document_count=len(member_doc_ids),
+                                        )
+                                        name = (
+                                            name_resp.content.strip()
+                                            .strip("\"'")
+                                            .strip()
+                                        )
+                                        name = " ".join(name.split())
+                                        if name and len(name) <= 255:
+                                            cluster_name = name
+                                    except Exception as llm_e:
+                                        logger.debug(
+                                            "LLM cluster name failed for %s, using keywords: %s",
+                                            cluster.id,
+                                            llm_e,
+                                        )
+                                    if not cluster_name:
+                                        cluster_name = " • ".join(top_keywords)
+                                        if len(cluster_name) > 255:
+                                            cluster_name = cluster_name[:252] + "..."
 
                             except Exception as e:
                                 logger.warning(

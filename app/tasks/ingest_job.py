@@ -19,19 +19,14 @@ from app.models import (
 )
 from app.services.ingest.github import (
     DEFAULT_LIMIT as GITHUB_DEFAULT_LIMIT,
-)
-from app.services.ingest.github import (
     ingest_repositories,
 )
 from app.services.ingest.hackernews import (
     DEFAULT_LIMIT as HN_DEFAULT_LIMIT,
-)
-from app.services.ingest.hackernews import (
     ingest_posts,
 )
 from app.services.ingest.params import normalize_github_repos_params
-from app.services.ingest.rss import DEFAULT_LIMIT as RSS_DEFAULT_LIMIT
-from app.services.ingest.rss import ingest_feeds
+from app.services.ingest.rss import DEFAULT_LIMIT as RSS_DEFAULT_LIMIT, ingest_feeds
 
 logger = logging.getLogger(__name__)
 

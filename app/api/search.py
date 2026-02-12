@@ -73,17 +73,23 @@ async def search_documents_endpoint(
             query=query,
         )
 
-    except (ValueError, RuntimeError) as e:
-        logger.error(
-            f"Invalid query or embedding computation failed: {e}", exc_info=True
-        )
+    except ValueError as e:
+        logger.error("Invalid search query: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid query or failed to process: {str(e)}",
+            detail=f"Invalid query: {str(e)}",
+        )
+    except RuntimeError as e:
+        logger.error(
+            "Embedding computation or vector search failed: %s", e, exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process search query",
         )
     except Exception as e:
         logger.error(
-            f"Error performing search for user {current_user.id}: {e}", exc_info=True
+            "Error performing search for user %s: %s", current_user.id, e, exc_info=True
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

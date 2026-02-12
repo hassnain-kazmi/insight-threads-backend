@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Cluster
+from app.models import Cluster, ClusterMember
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,7 @@ async def get_cluster_detail(
             selectinload(Cluster.timeseries),
             selectinload(Cluster.insights),
             selectinload(Cluster.anomalies),
+            selectinload(Cluster.members).selectinload(ClusterMember.document),
         )
         .where(Cluster.id == cluster_id, Cluster.user_id == user_id)
     )

@@ -52,7 +52,13 @@ def compute_umap_projections(
 
     try:
         with get_sync_db() as db:
-            user_uuid = UUID(user_id) if user_id else None
+            user_uuid: UUID | None = None
+            if user_id:
+                try:
+                    user_uuid = UUID(user_id)
+                except (ValueError, TypeError) as e:
+                    logger.error("Invalid user_id for UMAP job: %r (%s)", user_id, e)
+                    raise ValueError(f"Invalid user_id format: {user_id}") from e
 
             query = select(DocumentEmbedding).where(
                 DocumentEmbedding.model_name == model_name

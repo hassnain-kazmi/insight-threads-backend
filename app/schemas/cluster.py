@@ -35,6 +35,18 @@ class ClustersListResponse(BaseModel):
     total: int = Field(..., description="Total number of clusters")
 
 
+class ClusterMemberResponse(BaseModel):
+    """Response model for a document's membership in a cluster."""
+
+    document_id: UUID = Field(..., description="Document unique identifier")
+    document_title: str | None = Field(None, description="Document title for display")
+    membership_strength: float | None = Field(
+        None, description="Cosine similarity to cluster centroid (0-1)"
+    )
+
+    model_config = {"from_attributes": True}
+
+
 class KeywordResponse(BaseModel):
     """Response model for keyword."""
 
@@ -91,6 +103,10 @@ class ClusterDetailResponse(BaseModel):
     )
     anomalies: list[AnomalyResponse] = Field(
         default_factory=list, description="Anomalies detected for cluster"
+    )
+    members: list[ClusterMemberResponse] = Field(
+        default_factory=list,
+        description="Documents in this cluster (id, title, membership strength)",
     )
 
     model_config = {"from_attributes": True}

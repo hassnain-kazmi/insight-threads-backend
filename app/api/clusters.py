@@ -8,6 +8,7 @@ from app.db import get_db
 from app.models import User
 from app.schemas.cluster import (
     ClusterDetailResponse,
+    ClusterMemberResponse,
     ClusterResponse,
     ClustersListResponse,
 )
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/clusters", tags=["clusters"])
 async def get_clusters_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    limit: int = Query(100, ge=1, le=500, description="Maximum number of clusters"),
+    limit: int = Query(500, ge=1, le=2000, description="Maximum number of clusters"),
     offset: int = Query(0, ge=0, description="Number of clusters to skip"),
 ) -> ClustersListResponse:
     """
@@ -35,7 +36,7 @@ async def get_clusters_endpoint(
     Args:
         current_user: Authenticated user from JWT token
         db: Database session
-        limit: Maximum number of clusters to return (default: 100)
+        limit: Maximum number of clusters to return (default: 500)
         offset: Number of clusters to skip (default: 0)
 
     Returns:
@@ -118,7 +119,16 @@ async def get_cluster_detail_endpoint(
                 detail="Cluster not found",
             )
 
-        return ClusterDetailResponse.model_validate(cluster)
+        members_data = [
+            ClusterMemberResponse(
+                document_id=m.document_id,
+                document_title=m.document.title if m.document else None,
+                membership_strength=m.membership_strength,
+            )
+            for m in cluster.members
+        ]
+        response = ClusterDetailResponse.model_validate(cluster)
+        return response.model_copy(update={"members": members_data})
 
     except HTTPException:
         raise
