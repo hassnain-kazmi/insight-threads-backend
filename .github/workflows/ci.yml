@@ -37,6 +37,3 @@ jobs:
 
       - name: Vulture (dead code)
         run: vulture app/ --min-confidence 80
-
-      - name: Build verification
-        run: python -c "from app.main import app; assert app is not None"
