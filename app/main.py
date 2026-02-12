@@ -1,0 +1,92 @@
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.anomalies import router as anomalies_router
+from app.api.auth import router as auth_router
+from app.api.clusters import router as clusters_router
+from app.api.documents import router as documents_router
+from app.api.ingest import router as ingest_router
+from app.api.ingest_event import router as ingest_events_router
+from app.api.insights import router as insights_router
+from app.api.search import router as search_router
+from app.api.umap import router as umap_router
+from app.config import settings
+from app.db import check_db_connection, close_db
+from app.logging_config import configure_logging
+
+configure_logging()
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    db_ok = await check_db_connection()
+    if not db_ok:
+        logger.warning("Database connection check failed at startup.")
+    yield
+    await close_db()
+
+
+app = FastAPI(
+    title="InsightThreads Backend",
+    description="Backend API for InsightThreads - Document analysis and insights platform",
+    debug=settings.DEBUG,
+    lifespan=lifespan,
+)
+
+cors_origins = [
+    origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth_router)
+app.include_router(ingest_router)
+app.include_router(ingest_events_router)
+app.include_router(documents_router)
+app.include_router(clusters_router)
+app.include_router(insights_router)
+app.include_router(anomalies_router)
+app.include_router(search_router)
+app.include_router(umap_router)
+
+
+@app.get("/health", status_code=status.HTTP_200_OK)
+async def health_check() -> JSONResponse:
+    """
+    Health check endpoint.
+
+    Returns:
+        JSON response with health status and database connection status.
+    """
+    db_healthy = await check_db_connection()
+    status_code = (
+        status.HTTP_200_OK if db_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if db_healthy else "unhealthy",
+            "database": "connected" if db_healthy else "disconnected",
+        },
+    )
+
+
+@app.get("/", status_code=status.HTTP_200_OK)
+async def root() -> dict:
+    """Root endpoint."""
+    return {
+        "message": "InsightThreads Backend API",
+    }

@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${DEV_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${DEV_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${DEV_POSTGRES_DB}
+    ports:
+      - "${DEV_POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DEV_POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - insightthreads-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${DEV_REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - insightthreads-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  insightthreads-network:
+    driver: bridge
