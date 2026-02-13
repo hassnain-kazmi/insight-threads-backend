@@ -20,7 +20,7 @@ async def get_insights_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     cluster_id: str | None = Query(None, description="Filter by cluster ID"),
-    limit: int = Query(500, ge=1, le=2000, description="Maximum number of results"),
+    limit: int = Query(500, ge=1, le=10000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ) -> InsightsListResponse:
     """

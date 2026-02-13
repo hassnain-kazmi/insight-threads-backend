@@ -23,7 +23,7 @@ router = APIRouter(prefix="/ingest/events", tags=["ingest"])
 async def get_ingest_events_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    limit: int = Query(100, ge=1, le=500, description="Maximum number of results"),
+    limit: int = Query(100, ge=1, le=10000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     event_status: IngestEventStatusFilter | None = Query(
         None,

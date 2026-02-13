@@ -12,7 +12,7 @@ from app.services.umap_service import (
     get_user_umap_projections,
 )
 from app.utils.auth import get_current_user
-from app.config import settings
+from app.ml.embeddings import DEFAULT_MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ async def get_cluster_umap_endpoint(
     cluster_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    model_name: str = Query(settings.OLLAMA_MODEL, description="UMAP model name"),
+    model_name: str = Query(DEFAULT_MODEL_NAME, description="Embedding/UMAP model name"),
 ) -> ClusterUMAPResponse:
     """
     Get UMAP projections for all documents in a cluster.
@@ -106,9 +106,9 @@ async def get_cluster_umap_endpoint(
 async def get_user_umap_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    model_name: str = Query(settings.OLLAMA_MODEL, description="UMAP model name"),
+    model_name: str = Query(DEFAULT_MODEL_NAME, description="Embedding/UMAP model name"),
     limit: int = Query(
-        1000, description="Maximum number of projections to return", ge=1, le=5000
+        1000, description="Maximum number of projections to return", ge=1, le=10000
     ),
 ) -> ClusterUMAPResponse:
     """
@@ -120,7 +120,7 @@ async def get_user_umap_endpoint(
         current_user: Authenticated user from JWT token
         db: Database session
         model_name: UMAP model name to filter by (default: DEFAULT_MODEL_NAME)
-        limit: Maximum number of projections to return (default: 1000, max: 5000)
+        limit: Maximum number of projections to return (default: 1000, max: 10000)
 
     Returns:
         ClusterUMAPResponse with document projections

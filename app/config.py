@@ -32,6 +32,7 @@ class GlobalConfig(BaseSettings):
 
     REDIS_HOST: str
     REDIS_PORT: str
+    REDIS_PASSWORD: Optional[str] = None
 
     SUPABASE_URL: str
     SUPABASE_JWT_SECRET: str
@@ -69,7 +70,10 @@ class GlobalConfig(BaseSettings):
 
     @property
     def redis_url(self) -> str:
-        """Construct Redis URL."""
+        """Construct Redis URL (with optional password for Railway etc.)."""
+        if self.REDIS_PASSWORD:
+            pw = quote_plus(self.REDIS_PASSWORD)
+            return f"redis://:{pw}@{self.REDIS_HOST}:{self.REDIS_PORT}/0"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
 
 
