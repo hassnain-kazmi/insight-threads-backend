@@ -26,7 +26,7 @@ async def get_anomalies_endpoint(
         None, description="Filter anomalies from this date"
     ),
     end_date: date | None = Query(None, description="Filter anomalies until this date"),
-    limit: int = Query(100, ge=1, le=500, description="Maximum number of results"),
+    limit: int = Query(100, ge=1, le=10000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ) -> AnomaliesListResponse:
     """

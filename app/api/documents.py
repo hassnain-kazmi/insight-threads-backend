@@ -25,7 +25,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 async def get_documents_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    limit: int = Query(100, ge=1, le=5000, description="Maximum number of results"),
+    limit: int = Query(100, ge=1, le=10000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     processed: bool | None = Query(None, description="Filter by processed status"),
     ingest_event_id: str | None = Query(None, description="Filter by ingest event ID"),

@@ -24,7 +24,7 @@ router = APIRouter(prefix="/clusters", tags=["clusters"])
 async def get_clusters_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    limit: int = Query(500, ge=1, le=2000, description="Maximum number of clusters"),
+    limit: int = Query(500, ge=1, le=10000, description="Maximum number of clusters"),
     offset: int = Query(0, ge=0, description="Number of clusters to skip"),
 ) -> ClustersListResponse:
     """
