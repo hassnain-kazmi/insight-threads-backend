@@ -5,13 +5,35 @@ from app.config import settings
 
 
 def configure_logging() -> None:
-    """Configure logging with console and file handlers."""
+    """Configure logging: console always; file only when LOG_DIR is set and writable."""
+    handlers: dict = {
+        "default": {
+            "class": "rich.logging.RichHandler",
+            "level": "DEBUG",
+            "formatter": "console",
+        },
+    }
+    logger_handlers = ["default"]
+
     logs_dir = (
         Path(settings.LOG_DIR)
         if settings.LOG_DIR
         else Path(__file__).parent.parent / "logs"
     )
-    logs_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        handlers["file"] = {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "DEBUG",
+            "formatter": "file",
+            "filename": str(logs_dir / "app.log"),
+            "maxBytes": 10485760,
+            "backupCount": 5,
+            "encoding": "utf-8",
+        }
+        logger_handlers.append("file")
+    except OSError:
+        pass
 
     dictConfig(
         {
@@ -29,26 +51,11 @@ def configure_logging() -> None:
                     "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
                 },
             },
-            "handlers": {
-                "default": {
-                    "class": "rich.logging.RichHandler",
-                    "level": "DEBUG",
-                    "formatter": "console",
-                },
-                "file": {
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "level": "DEBUG",
-                    "formatter": "file",
-                    "filename": str(logs_dir / "app.log"),
-                    "maxBytes": 10485760,
-                    "backupCount": 5,
-                    "encoding": "utf-8",
-                },
-            },
+            "handlers": handlers,
             "loggers": {
-                "uvicorn": {"handlers": ["default", "file"], "level": "INFO"},
+                "uvicorn": {"handlers": logger_handlers, "level": "INFO"},
                 "app": {
-                    "handlers": ["default", "file"],
+                    "handlers": logger_handlers,
                     "level": "DEBUG" if settings.DEBUG else "INFO",
                     "propagate": False,
                 },
