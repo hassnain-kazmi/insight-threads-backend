@@ -1,5 +1,5 @@
 [deploy]
 releaseCommand = "alembic upgrade head"
-healthcheckPath = "/health"
-healthcheckTimeout = 300
+# Healthcheck omitted: same repo used by backend (has /health) and Celery worker (no HTTP).
+# Re-enable in Railway UI for the backend service only if the platform allows per-service overrides.
 restartPolicyType = "ON_FAILURE"
