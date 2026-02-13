@@ -28,7 +28,9 @@ async def get_cluster_umap_endpoint(
     cluster_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    model_name: str = Query(DEFAULT_MODEL_NAME, description="Embedding/UMAP model name"),
+    model_name: str = Query(
+        DEFAULT_MODEL_NAME, description="Embedding/UMAP model name"
+    ),
 ) -> ClusterUMAPResponse:
     """
     Get UMAP projections for all documents in a cluster.
@@ -106,7 +108,9 @@ async def get_cluster_umap_endpoint(
 async def get_user_umap_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    model_name: str = Query(DEFAULT_MODEL_NAME, description="Embedding/UMAP model name"),
+    model_name: str = Query(
+        DEFAULT_MODEL_NAME, description="Embedding/UMAP model name"
+    ),
     limit: int = Query(
         1000, description="Maximum number of projections to return", ge=1, le=10000
     ),
